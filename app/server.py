@@ -390,33 +390,49 @@ def kits_available() -> bool:
     return importlib.util.find_spec("soundfile") is not None and importlib.util.find_spec("numpy") is not None
 
 
+def _known_kit_manifest(kit_dir: Path) -> dict | None:
+    """Note maps for well-known SFZ kits people unzip themselves (app/kitdefs/known)."""
+    for f in sorted((KITDEFS_DIR / "known").glob("*.json")):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        if any((kit_dir / marker).exists() for marker in d.get("match", [])):
+            return d.get("manifest")
+    return None
+
+
 def _kit_from_folder(kit_dir: Path) -> dict | None:
     manifest_path = kit_dir / KIT_MANIFEST
+    m = None
     if manifest_path.exists():
         try:
             m = json.loads(manifest_path.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             m = None
-        if m:
-            programs = []
-            for prog in m.get("programs", []):
-                path = kit_dir / prog.get("file", "")
-                if path.exists():
-                    programs.append({"name": prog.get("name") or path.stem, "desc": prog.get("desc", ""), "path": str(path)})
-            if programs:
-                return {
-                    "id": str(kit_dir),
-                    "name": m.get("name") or kit_dir.name,
-                    "author": m.get("author", ""),
-                    "license": m.get("license", ""),
-                    "programs": programs,
-                    "noteMap": m.get("noteMap") or {},
-                    "hihat": m.get("hihat") or None,
-                    "role": m.get("role") or "drums",
-                    "labels": m.get("labels") or {},
-                    "sounds": m.get("sounds") or [],
-                    "calibrate": m.get("calibrate") or None,
-                }
+    else:
+        m = _known_kit_manifest(kit_dir)
+    if m:
+        programs = []
+        for prog in m.get("programs", []):
+            path = kit_dir / prog.get("file", "")
+            if path.exists():
+                programs.append({"name": prog.get("name") or path.stem, "desc": prog.get("desc", ""), "path": str(path)})
+        if programs:
+            return {
+                "id": str(kit_dir),
+                "name": m.get("name") or kit_dir.name,
+                "author": m.get("author", ""),
+                "license": m.get("license", ""),
+                "programs": programs,
+                "noteMap": m.get("noteMap") or {},
+                "hihat": m.get("hihat") or None,
+                "role": m.get("role") or "drums",
+                "labels": m.get("labels") or {},
+                "sounds": m.get("sounds") or [],
+                "calibrate": m.get("calibrate") or None,
+                "cc": m.get("cc") or {},
+            }
     programs = []
     base_depth = len(kit_dir.parts)
     for root, dirnames, filenames in os.walk(kit_dir):
@@ -424,33 +440,40 @@ def _kit_from_folder(kit_dir: Path) -> dict | None:
         if len(rp.parts) - base_depth > 5:
             dirnames[:] = []
             continue
-        dirnames[:] = [d for d in dirnames if not d.lower().startswith("multi") and not d.startswith(".")]
+        # Folders of pieces that other .sfz files include are not kits of their own.
+        dirnames[:] = [d for d in dirnames if not d.lower().startswith(("multi", "keymap", "mapping", "include", "."))]
         for f in filenames:
             if f.lower().endswith(".sfz"):
                 p = rp / f
                 rel = p.parent.relative_to(kit_dir)
-                programs.append({"name": p.stem, "desc": "" if str(rel) == "." else str(rel), "path": str(p)})
+                pretty = re.sub(r"[_]+", " ", p.stem).strip()
+                programs.append({"name": pretty, "desc": kit_dir.name if str(rel) == "." else f"{kit_dir.name}, {rel}", "path": str(p)})
     if not programs:
         return None
     programs.sort(key=lambda x: (len(Path(x["path"]).parts), x["name"].lower()))
     return {"id": str(kit_dir), "name": kit_dir.name, "author": "", "license": "", "programs": programs[:24], "noteMap": {}, "hihat": None,
-            "role": "drums", "labels": {}, "sounds": [], "calibrate": None}
+            "role": "drums", "labels": {}, "sounds": [], "calibrate": None, "cc": {}}
 
 
 def scan_kits() -> list[dict]:
     kits = []
+    seen = set()
+    folders = []
     if USER_KITS_DIR.exists():
-        for d in sorted(USER_KITS_DIR.iterdir(), key=lambda x: x.name.lower()):
-            if d.is_dir() and not d.name.startswith(("_", ".")):
-                k = _kit_from_folder(d)
-                if k:
-                    kits.append(k)
-    for extra in SETTINGS.get("kitFolders", []) or []:
-        p = Path(extra)
-        if p.is_dir():
-            k = _kit_from_folder(p)
-            if k:
-                kits.append(k)
+        folders += [d for d in sorted(USER_KITS_DIR.iterdir(), key=lambda x: x.name.lower())
+                    if d.is_dir() and not d.name.startswith(("_", "."))]
+    folders += [Path(extra) for extra in SETTINGS.get("kitFolders", []) or []]
+    for d in folders:
+        try:
+            key = str(d.resolve()).lower()
+        except OSError:
+            continue
+        if key in seen or not d.is_dir():
+            continue  # the same folder added twice shows once
+        seen.add(key)
+        k = _kit_from_folder(d)
+        if k:
+            kits.append(k)
     return kits
 
 

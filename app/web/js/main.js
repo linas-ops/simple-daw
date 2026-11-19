@@ -252,6 +252,7 @@ class App {
         noteMap: kit.noteMap || {},
         hihat: kit.hihat || null,
         calibrate: kit.calibrate || null,
+        ccDefaults: kit.cc || {},
         role: kit.role || 'drums',
         cc: prev && prev.path === program.path ? prev.cc || {} : {},
       },
@@ -279,8 +280,16 @@ class App {
     this.pluginError = null;
     this.audio.pluginLoading = true;
     this.updateSoundButton();
+    // Use the kit's current note map, so improvements reach songs saved earlier.
+    const known = this.programInfo(sfz.path);
+    if (known) {
+      Object.assign(sfz, {
+        noteMap: known.kit.noteMap || {}, hihat: known.kit.hihat || null, calibrate: known.kit.calibrate || null,
+        ccDefaults: known.kit.cc || {}, role: known.kit.role || 'drums',
+      });
+    }
     try {
-      const r = await api.loadKit(sfz.path, this.audio.ctx.sampleRate, { noteMap: sfz.noteMap || {}, hihat: sfz.hihat || null, calibrate: sfz.calibrate || null });
+      const r = await api.loadKit(sfz.path, this.audio.ctx.sampleRate, { noteMap: sfz.noteMap || {}, hihat: sfz.hihat || null, calibrate: sfz.calibrate || null, cc: sfz.ccDefaults || {} });
       this.kitControls = r.controls || [];
       this.mainKeys = new Set(r.keys || []);
       this.kitKeys.set(sfz.path, this.mainKeys);
@@ -616,7 +625,7 @@ class App {
 
   async fillKitList(list, close) {
     try {
-      if (!this.kitData) this.kitData = await api.kits();
+      this.kitData = await api.kits(); // fresh each time, so kits unzipped while the app is open show up
     } catch (err) {
       list.replaceChildren(el('p', { class: 'note' }, err.message));
       return;
@@ -713,7 +722,7 @@ class App {
     const e = this.audio.engineNote(laneNote);
     const ov = s.lanes?.[laneNote];
     if (ov && ov.path) {
-      return { path: ov.path, note: ov.note ?? e, raw: !!ov.raw, gain, noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null };
+      return { path: ov.path, note: ov.note ?? e, raw: !!ov.raw, gain, noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null, cc: ov.cc || {} };
     }
     if (this.mainPlays(e)) return gain !== 1 ? { path: s.sfz.path, note: e, raw: false, gain } : null;
     const perc = this.percussionFor(e);
@@ -769,7 +778,7 @@ class App {
     const used = new Set(this.store.notes.map((n) => n.n));
     for (const [note, ov] of Object.entries(s.lanes || {})) {
       if (!ov?.path) continue;
-      if (!want.has(ov.path)) want.set(ov.path, { opts: { noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null }, notes: [] });
+      if (!want.has(ov.path)) want.set(ov.path, { opts: { noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null, cc: ov.cc || {} }, notes: [] });
       want.get(ov.path).notes.push(ov.note ?? this.audio.engineNote(Number(note)));
     }
     for (const n of used) {
@@ -937,7 +946,7 @@ class App {
     let keys = this.kitKeys.get(program.path);
     let labels = {};
     if (!keys) {
-      const r = await api.describeKit(program.path, this.audio.ctx.sampleRate, { noteMap: kit.noteMap || {}, hihat: kit.hihat || null, calibrate: kit.calibrate || null });
+      const r = await api.describeKit(program.path, this.audio.ctx.sampleRate, { noteMap: kit.noteMap || {}, hihat: kit.hihat || null, calibrate: kit.calibrate || null, cc: kit.cc || {} });
       keys = new Set(r.keys || []);
       labels = r.labels || {};
       this.kitKeys.set(program.path, keys);
@@ -1040,6 +1049,7 @@ class App {
                 noteMap: entry.kit.noteMap || {},
                 hihat: entry.kit.hihat || null,
                 calibrate: entry.kit.calibrate || null,
+                cc: entry.kit.cc || {},
               };
               this.setLaneSound(note, choice);
               this.audio.audition(note, 105);

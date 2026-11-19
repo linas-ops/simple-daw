@@ -1,0 +1,15 @@
+{
+ "match": ["Swirly Drums.bank.xml", "Swirly_Drums_User_Guide_1.1.pdf"],
+ "manifest": {
+  "name": "Swirly Drums",
+  "author": "Karoryfer Samples",
+  "license": "CC0 (public domain)",
+  "programs": [
+   {"name": "Swirly Drums", "file": "Programs/Full_kit.sfz",
+    "desc": "Karoryfer's full kit: five toms, cajón kick, splash, china and broken crash."}
+  ],
+  "noteMap": {"37": 40, "48": 47, "50": 48, "47": 45, "54": 42, "56": 66, "59": 51, "53": 51, "52": 53},
+  "labels": {"35": "Cajón kick", "37": "Snare edge", "53": "Ride (no bell)", "54": "Hi-hat tight", "56": "Cowbell", "57": "Broken crash", "59": "Ride"},
+  "cc": {"4": 1.0}
+ }
+}

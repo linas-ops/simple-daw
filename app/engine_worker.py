@@ -176,7 +176,8 @@ class Host:
     @staticmethod
     def _kit_options(options: dict | None) -> dict:
         o = options or {}
-        return {"noteMap": o.get("noteMap") or {}, "hihat": o.get("hihat") or None, "calibrate": o.get("calibrate") or None}
+        return {"noteMap": o.get("noteMap") or {}, "hihat": o.get("hihat") or None, "calibrate": o.get("calibrate") or None,
+                "cc": o.get("cc") or {}}
 
     def _open_kit(self, path: str, options: dict | None = None) -> tuple[str, dict]:
         """Open a kit (or reuse it if it's already open). Several stay open at once."""
@@ -311,7 +312,7 @@ class Host:
                     entry = self.kits[self.main]
                 else:
                     r = g["route"] or {}
-                    _, entry = self._open_kit(path, r if ("noteMap" in r or "hihat" in r or "calibrate" in r) else None)
+                    _, entry = self._open_kit(path, r if ("noteMap" in r or "hihat" in r or "calibrate" in r or "cc" in r) else None)
             except Exception as exc:  # noqa: BLE001  (a missing borrowed kit shouldn't silence the rest)
                 print(f"Kit couldn't be used: {path} ({exc})", file=sys.stderr)
                 continue
@@ -327,7 +328,9 @@ class Host:
                 continue
             events.sort(key=lambda e: (e[0], 0 if e[1] == "cc" else 1))
             seed = (int(round(start * 1000)) + zlib.crc32(path.encode("utf-8"))) & 0x7FFFFFFF
-            audio = kit.render(events, preroll + length, sr, cc_overrides if path == self.main else None, seed=seed)
+            # The kit's own starting controls (like hi-hat openness), then the mixer's settings.
+            controls = {**(opts.get("cc") or {}), **((cc_overrides or {}) if path == self.main else {})}
+            audio = kit.render(events, preroll + length, sr, controls or None, seed=seed)
             audio *= self._kit_gain(entry, sr)
             part = audio[:, skip: skip + frames]
             out[:, :part.shape[1]] += part
