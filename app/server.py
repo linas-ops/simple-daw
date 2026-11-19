@@ -311,6 +311,8 @@ KIT_CATALOG = [
             "noteMap": {"40": 38, "42": 54},
             "hihat": {"cc": 4, "rules": {"42": [[0, 40, 56], [41, 110, 54], [111, 127, 42]],
                                          "46": [[0, 35, 46], [36, 95, 56], [96, 127, 54]]}},
+            # What these notes play in this kit (General MIDI names them differently).
+            "labels": {"54": "Hi-hat closed 2", "56": "Hi-hat half-open", "58": "Crash bell", "59": "Crash 2 bell"},
         },
     },
     {
@@ -357,6 +359,7 @@ KIT_CATALOG = [
             ],
             "noteMap": {"48": 47, "45": 43, "43": 41, "50": 47, "40": 37, "52": 57, "59": 51},
             "hihat": {"cc": 4, "rules": {"46": [[0, 40, 58], [41, 100, 46], [101, 127, 42]]}},
+            "labels": {"54": "Crash tip", "56": "Hi-hat closed 2", "58": "Hi-hat open 2"},
         },
     },
 ]

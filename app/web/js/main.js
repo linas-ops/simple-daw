@@ -673,9 +673,11 @@ class App {
   // Does a kit have a sound for this (General MIDI) drum note?
   static kitHas(keys, kit, note) {
     const noteMap = kit?.noteMap || {};
-    // Drum kits that remap notes use spare keys (like 54 and 56) for hi-hat
-    // articulations, so they don't count as playing the percussion notes.
-    if ((kit?.role || 'drums') !== 'percussion' && (Object.keys(noteMap).length || kit?.hihat) && laneInfo('gm', note).family === 'perc') return false;
+    // Drum kits that remap notes put extra cymbal and hi-hat sounds on spare keys
+    // from 60 up, which General MIDI uses for hand percussion (bongos, congas...),
+    // so those lanes go to a percussion kit instead. Keys below 60 stay with the
+    // drum kit, as your module may send them (54 is a hi-hat on Naked Drums).
+    if ((kit?.role || 'drums') !== 'percussion' && (Object.keys(noteMap).length || kit?.hihat) && note >= 60) return false;
     if (!keys) return true;
     const mapped = Number(noteMap[note] ?? note);
     if (keys.has(mapped)) return true;
@@ -945,7 +947,7 @@ class App {
     for (const [n, info] of gm.notes) {
       if (!App.kitHas(keys, kit, n)) continue;
       const fam = FAMILIES[info.family].label;
-      out.push({ key: n, name: info.label, family: fam, raw: false, order: info.order });
+      out.push({ key: n, name: kit.labels?.[n] || info.label, family: fam, raw: false, order: info.order });
     }
     // Labelled sounds of a kit without a note map (most SFZ kits from elsewhere).
     if (!Object.keys(kit.noteMap || {}).length) {
