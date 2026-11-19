@@ -1,0 +1,71 @@
+SIMPLE DAW
+==========
+
+Start it: double-click "Start Simple DAW.bat".
+The first time, it sets itself up (needs internet, about a minute).
+After that it opens straight away in its own window.
+
+Recording
+1. Plug your drum module into the computer with USB and turn it on.
+2. If the window asks to use MIDI devices, click Allow.
+3. Hit a pad: its name lights up on the left.
+4. Press R (or the red button), wait for the count-in, and play.
+5. Press Space to listen back. Try other sounds with the Sound button.
+
+While you record you hear your module, as always. Simple DAW stores
+every hit as MIDI and plays it back with the sound you choose.
+Every recording is kept as a new take (button at the bottom right).
+
+Your songs save themselves in the Projects folder.
+Exported WAV and MIDI files go to the Exports folder.
+
+Realistic kits (recommended)
+- Click Sound and pick a sample kit, such as "Naked Drums (studio)".
+  Every hit uses a different recording, so nothing sounds repeated.
+- More free kits: Sound > Get more kits... downloads them for you.
+- Other SFZ kits: unzip them into the Kits folder.
+- Mix > Kit mixer sets the level of each mic and drum.
+- Sample kits are heard on playback, not while you record.
+
+Percussion
+- Sound > Get more kits... > Percussion (49 MB, free): cajon, bongos,
+  congas, shaker, tambourine, cowbell, agogo, triangle and more.
+- Pick "Percussion" in Sound and your pads play it: kick = cajon bass,
+  snare = cajon slap, toms = bongos and congas, hi-hat = shaker,
+  ride = cowbell, crash = triangle.
+- With any other kit, percussion lanes (conga, shaker...) play from
+  Percussion automatically.
+
+Each drum: right-click its name (or click its ... button)
+- Move hits to another drum: e.g. turn the kick part into a snare part.
+- Copy hits to another drum: both drums play them (e.g. snare + conga).
+- Swap with another drum: each drum gets the other's hits.
+  Ctrl+Z undoes any of these. Select hits first to move only those.
+- Choose another sound: give this drum a sound from any kit you have,
+  like a tom from another kit or a bongo from Percussion.
+- Volume: make this drum louder or softer (also in Mix).
+- Sound > Save as my kit... keeps your mix of kits for other songs.
+- Lanes menu (top left) > Show percussion lanes to see them all.
+
+Plugins
+- 64-bit VST3 and VST2 plugins show up under Sound > Plugins.
+- Some drum plugins (MT Power Drum Kit, Steven Slate Drums) stay
+  silent in Simple DAW. Use a sample kit instead.
+
+If something goes wrong
+- "No drum module found": close other music programs that might be using
+  it (Cakewalk, Audacity), then unplug and replug the USB cable.
+- Hits land late compared to the click: Settings > Timing correction.
+- Lanes have the wrong names: Settings > Note map (Roland or standard).
+- To see a log window, run app\Start with log window.bat.
+  The log file is app\data\simple-daw.log.
+
+Credits
+- Built-in kits: AVL Drumkits by Glen MacArthur, CC BY-SA 3.0
+  (see app\kits\avl\LICENSE.txt)
+- Naked Drums: Wilkinson Audio. Muldjord Kit and DRS Kit: the
+  DrumGizmo team. SFZ versions by kinwie. All CC BY 4.0.
+- Percussion: samples from the Versilian Community Sample Library
+  (VCSL) by Versilian Studios, CC0 (public domain).
+- Plugin hosting: DawDreamer (GPLv3)
+- Fonts: Barlow and Saira Stencil One (SIL Open Font License)

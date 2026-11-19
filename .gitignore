@@ -1,0 +1,10 @@
+# Made by Simple DAW when it runs (your own files and settings)
+/Projects/
+/Exports/
+/Kits/
+/app/data/
+/app/.venv/
+
+# Python
+__pycache__/
+*.pyc

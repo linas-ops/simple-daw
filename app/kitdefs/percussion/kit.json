@@ -1,0 +1,1020 @@
+{
+ "id": "percussion",
+ "name": "Percussion",
+ "author": "Versilian Studios (VCSL)",
+ "license": "CC0 (public domain)",
+ "size": "49 MB",
+ "bytes": 48711810,
+ "desc": "Cajón, congas, bongos, shakers, tambourine, cowbell, agogô, triangle and more. Your pads play it right away, and any lane can use its sounds.",
+ "folder": "Percussion",
+ "source": {
+  "type": "files",
+  "base": "https://raw.githubusercontent.com/sgossner/VCSL/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/",
+  "into": "VCSL",
+  "files": [
+   [
+    "Idiophones/Struck Idiophones/Agogo Bells/Agogo_High_v1_rr1_Mid.wav",
+    196284
+   ],
+   [
+    "Idiophones/Struck Idiophones/Agogo Bells/Agogo_High_v2_rr1_Mid.wav",
+    200936
+   ],
+   [
+    "Idiophones/Struck Idiophones/Agogo Bells/Agogo_High_v3_rr1_Mid.wav",
+    197312
+   ],
+   [
+    "Idiophones/Struck Idiophones/Agogo Bells/Agogo_Low_v1_rr1_Mid.wav",
+    349748
+   ],
+   [
+    "Idiophones/Struck Idiophones/Agogo Bells/Agogo_Low_v2_rr1_Mid.wav",
+    431804
+   ],
+   [
+    "Idiophones/Struck Idiophones/Bell Tree/Stroke/BellTree_Stroke_3_Mid.wav",
+    997272
+   ],
+   [
+    "Idiophones/Struck Idiophones/Bell Tree/Stroke/BellTree_Stroke_4_Mid.wav",
+    905432
+   ],
+   [
+    "Idiophones/Struck Idiophones/Bell Tree/Stroke/BellTree_Stroke_6_Mid.wav",
+    1041236
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cabasa/Cabasa1_Hit_rr1_Mid.wav",
+    143312
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cabasa/Cabasa1_Hit_rr2_Mid.wav",
+    156688
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit1_f_rr1.wav",
+    222546
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit1_f_rr2.wav",
+    242438
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit1_fff_rr1.wav",
+    225658
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit1_fff_rr2.wav",
+    230786
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit1_mp_rr1.wav",
+    238690
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit1_mp_rr2.wav",
+    184350
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit2_pp_rr1.wav",
+    231674
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit2_pp_rr2.wav",
+    223474
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit3_f_rr1.wav",
+    249974
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit3_f_rr2.wav",
+    253238
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit3_mp_rr1.wav",
+    221278
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit3_mp_rr2.wav",
+    259622
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit3_p_rr1.wav",
+    239398
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cajon/Cajon_hit3_p_rr2.wav",
+    231558
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claps/Clap_rr1.wav",
+    141974
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claps/Clap_rr2.wav",
+    136950
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claps/Clap_rr3.wav",
+    132222
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claps/Clap_rr4.wav",
+    147686
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claps/Clap_rr5.wav",
+    126446
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claps/Clap_rr6.wav",
+    89770
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claves/Claves1_Hit_v1_rr1_Mid.wav",
+    199848
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav",
+    191812
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claves/Claves1_Hit_v3_rr1_Mid.wav",
+    228764
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claves/Claves2_Hit_v1_rr1_Mid.wav",
+    126800
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claves/Claves2_Hit_v2_rr1_Mid.wav",
+    182084
+   ],
+   [
+    "Idiophones/Struck Idiophones/Claves/Claves2_Hit_v3_rr1_Mid.wav",
+    225848
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cowbells/Cowbell1_Hit_v2_rr1_Mid.wav",
+    199568
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cowbells/Cowbell1_Hit_v3_rr1_Mid.wav",
+    204528
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cowbells/Cowbell1_Hit_v4_rr1_Mid.wav",
+    195080
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cowbells/Cowbell1_Muted_v2_rr1_Mid.wav",
+    186792
+   ],
+   [
+    "Idiophones/Struck Idiophones/Cowbells/Cowbell1_Muted_v3_rr1_Mid.wav",
+    195688
+   ],
+   [
+    "Idiophones/Struck Idiophones/Guiro/Guiro_Fast_rr1_Mid.wav",
+    267144
+   ],
+   [
+    "Idiophones/Struck Idiophones/Guiro/Guiro_Hit_rr1_Mid.wav",
+    226344
+   ],
+   [
+    "Idiophones/Struck Idiophones/Guiro/Guiro_Hit_rr2_Mid.wav",
+    240040
+   ],
+   [
+    "Idiophones/Struck Idiophones/Guiro/Guiro_Med_rr1_Mid.wav",
+    331892
+   ],
+   [
+    "Idiophones/Struck Idiophones/Shaker, Large/LShaker_Hit_rr1_Mid.wav",
+    230676
+   ],
+   [
+    "Idiophones/Struck Idiophones/Shaker, Large/LShaker_Hit_rr2_Mid.wav",
+    230612
+   ],
+   [
+    "Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Down_rr1.wav",
+    31556
+   ],
+   [
+    "Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Down_rr2.wav",
+    24012
+   ],
+   [
+    "Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Up_rr1.wav",
+    32196
+   ],
+   [
+    "Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Up_rr2.wav",
+    24672
+   ],
+   [
+    "Idiophones/Struck Idiophones/Sleigh Bells/Sleighbells_Hit_rr1_Mid.wav",
+    441104
+   ],
+   [
+    "Idiophones/Struck Idiophones/Sleigh Bells/Sleighbells_Hit_rr2_Mid.wav",
+    434528
+   ],
+   [
+    "Idiophones/Struck Idiophones/Slit Drum/LogDrumHi_MedM_v1_rr1_Sum.wav",
+    262508
+   ],
+   [
+    "Idiophones/Struck Idiophones/Slit Drum/LogDrumHi_MedM_v2_rr1_Sum.wav",
+    272684
+   ],
+   [
+    "Idiophones/Struck Idiophones/Slit Drum/LogDrumHi_MedM_v3_rr1_Sum.wav",
+    267984
+   ],
+   [
+    "Idiophones/Struck Idiophones/Slit Drum/LogDrumLo_MedM_v1_rr1_Sum.wav",
+    198684
+   ],
+   [
+    "Idiophones/Struck Idiophones/Slit Drum/LogDrumLo_MedM_v2_rr1_Sum.wav",
+    249240
+   ],
+   [
+    "Idiophones/Struck Idiophones/Slit Drum/LogDrumLo_MedM_v3_rr1_Sum.wav",
+    220864
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Hit_v1_rr1_Mid.wav",
+    338496
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Hit_v2_rr1_Mid.wav",
+    293256
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Shake_rr1_Mid.wav",
+    258948
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Shake_rr2_Mid.wav",
+    237792
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Hit_v1_rr1_Mid.wav",
+    206516
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Hit_v2_rr2_Mid.wav",
+    257716
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Shake_rr3_Mid.wav",
+    186804
+   ],
+   [
+    "Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Shake_rr4_Mid.wav",
+    184900
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v1_rr1_Mid.wav",
+    266320
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v1_rr2_Mid.wav",
+    256964
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v2_rr1_Mid.wav",
+    223540
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v2_rr2_Mid.wav",
+    218404
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v1_rr1_Mid.wav",
+    1482680
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v1_rr2_Mid.wav",
+    1251436
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v2_rr1_Mid.wav",
+    2098660
+   ],
+   [
+    "Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v2_rr2_Mid.wav",
+    1857796
+   ],
+   [
+    "Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr1.wav",
+    761098
+   ],
+   [
+    "Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr2.wav",
+    928690
+   ],
+   [
+    "Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr3.wav",
+    758344
+   ],
+   [
+    "Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr4.wav",
+    623722
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click3_vl1.wav",
+    186874
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click3_vl2.wav",
+    244570
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click_f_rr1.wav",
+    497338
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click_f_rr2.wav",
+    516568
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click_ff.wav",
+    200608
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click_mp.wav",
+    134674
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr1.wav",
+    107200
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr2.wav",
+    107200
+   ],
+   [
+    "Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr3.wav",
+    82468
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v2_rr1_Sum.wav",
+    281616
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v2_rr2_Sum.wav",
+    302396
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v3_rr1_Sum.wav",
+    367124
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v3_rr2_Sum.wav",
+    354580
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v5_rr1_Sum.wav",
+    588092
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v5_rr2_Sum.wav",
+    614388
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v7_rr1_Sum.wav",
+    1105152
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v7_rr2_Sum.wav",
+    993988
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v1_rr1_Mid.wav",
+    146696
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v1_rr2_Mid.wav",
+    199484
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v2_rr1_Mid.wav",
+    209356
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v2_rr2_Mid.wav",
+    177716
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v3_rr1_Mid.wav",
+    205208
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v3_rr2_Mid.wav",
+    186744
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v1_rr1_Mid.wav",
+    175448
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v1_rr2_Mid.wav",
+    173324
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v2_rr1_Mid.wav",
+    188064
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v2_rr2_Mid.wav",
+    182468
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v3_rr1_Mid.wav",
+    214912
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v3_rr2_Mid.wav",
+    178468
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v1_rr1_Mid.wav",
+    186436
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v1_rr2_Mid.wav",
+    172984
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v2_rr1_Mid.wav",
+    168720
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v2_rr2_Mid.wav",
+    209296
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v3_rr1_Mid.wav",
+    209224
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v3_rr2_Mid.wav",
+    205936
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v1_rr1_Mid.wav",
+    136228
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v1_rr2_Mid.wav",
+    145188
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v2_rr1_Mid.wav",
+    197568
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v2_rr2_Mid.wav",
+    202940
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v3_rr1_Mid.wav",
+    199540
+   ],
+   [
+    "Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v3_rr2_Mid.wav",
+    198636
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitFM_v1_rr1_Sum.wav",
+    119016
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitFM_v1_rr2_Sum.wav",
+    146608
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitFM_v2_rr1_Sum.wav",
+    159004
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitFM_v2_rr2_Sum.wav",
+    143076
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitN_v1_rr1_Sum.wav",
+    185024
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitN_v1_rr2_Sum.wav",
+    116928
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitN_v2_rr1_Sum.wav",
+    140012
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitN_v2_rr2_Sum.wav",
+    131952
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitN_v3_rr1_Sum.wav",
+    231124
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Conga_HitN_v3_rr2_Sum.wav",
+    178648
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v1_rr1_Sum.wav",
+    123548
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v1_rr2_Sum.wav",
+    103280
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v2_rr1_Sum.wav",
+    156412
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v2_rr2_Sum.wav",
+    169664
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitN_v1_rr1_Sum.wav",
+    117192
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitN_v1_rr2_Sum.wav",
+    163996
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitN_v2_rr1_Sum.wav",
+    141228
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitN_v2_rr2_Sum.wav",
+    155968
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitN_v3_rr1_Sum.wav",
+    207412
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Quinto_HitN_v3_rr2_Sum.wav",
+    157200
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v2_rr1_Sum.wav",
+    93556
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v2_rr2_Sum.wav",
+    91088
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v3_rr1_Sum.wav",
+    92140
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v3_rr2_Sum.wav",
+    98268
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v4_rr1_Sum.wav",
+    154712
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v4_rr2_Sum.wav",
+    160480
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitN_v1_rr2_Sum.wav",
+    123428
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitN_v2_rr1_Sum.wav",
+    149288
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitN_v2_rr2_Sum.wav",
+    126616
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitN_v3_rr1_Sum.wav",
+    129160
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitN_v3_rr2_Sum.wav",
+    120668
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitN_v4_rr1_Sum.wav",
+    161200
+   ],
+   [
+    "Membranophones/Struck Membranophones/Conga/Tumba_HitN_v4_rr2_Sum.wav",
+    200148
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl1_rr1.wav",
+    188300
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl1_rr2.wav",
+    211692
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl2_rr1.wav",
+    221192
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl2_rr2.wav",
+    215640
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl1_rr1.wav",
+    113988
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl1_rr2.wav",
+    114964
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl2_rr1.wav",
+    103708
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl2_rr2.wav",
+    109480
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl1_rr1.wav",
+    90756
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl1_rr2.wav",
+    88580
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl2_rr1.wav",
+    91936
+   ],
+   [
+    "Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl2_rr2.wav",
+    90244
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v2_rr1_Sum.wav",
+    305388
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v2_rr2_Sum.wav",
+    287200
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v3_rr1_Sum.wav",
+    301668
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v3_rr2_Sum.wav",
+    326976
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v2_rr1_Sum.wav",
+    659856
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v2_rr2_Sum.wav",
+    607780
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v3_rr1_Sum.wav",
+    637712
+   ],
+   [
+    "Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v3_rr2_Sum.wav",
+    575896
+   ]
+  ],
+  "copy": [
+   "Simple DAW Percussion.sfz"
+  ]
+ },
+ "manifest": {
+  "name": "Percussion",
+  "author": "Versilian Studios (VCSL)",
+  "license": "CC0 (public domain)",
+  "role": "percussion",
+  "programs": [
+   {
+    "name": "Percussion",
+    "file": "Simple DAW Percussion.sfz",
+    "desc": "Hand percussion on your pads: cajón, bongos, congas, shaker, tambourine, cowbell."
+   }
+  ],
+  "noteMap": {
+   "36": 88,
+   "35": 88,
+   "38": 89,
+   "40": 89,
+   "37": 75,
+   "48": 60,
+   "50": 60,
+   "45": 61,
+   "47": 61,
+   "43": 64,
+   "41": 90,
+   "42": 82,
+   "44": 82,
+   "46": 54,
+   "51": 56,
+   "53": 67,
+   "59": 68,
+   "49": 81,
+   "55": 80,
+   "57": 84,
+   "52": 83
+  },
+  "labels": {
+   "39": "Hand clap",
+   "54": "Tambourine",
+   "56": "Cowbell",
+   "58": "Vibraslap",
+   "60": "Bongo high",
+   "61": "Bongo low",
+   "62": "Quinto (muted)",
+   "63": "Quinto (open)",
+   "64": "Conga (open)",
+   "67": "Agogô high",
+   "68": "Agogô low",
+   "69": "Cabasa",
+   "70": "Maracas",
+   "73": "Guiro (short)",
+   "74": "Guiro (long)",
+   "75": "Claves",
+   "76": "Wood block high",
+   "77": "Wood block low",
+   "80": "Triangle (muted)",
+   "81": "Triangle (open)",
+   "82": "Shaker",
+   "83": "Sleigh bells",
+   "84": "Bell tree",
+   "87": "Concert bass drum",
+   "88": "Cajón bass",
+   "89": "Cajón slap",
+   "90": "Tumba (open)",
+   "91": "Tumba (muted)",
+   "92": "Conga (muted)",
+   "93": "Bongo high (muted)",
+   "94": "Bongo low (muted)",
+   "95": "Cowbell (muted)",
+   "96": "Tambourine shake",
+   "97": "Darbuka doum",
+   "98": "Darbuka tek",
+   "99": "Darbuka ka",
+   "100": "Frame drum",
+   "101": "Frame drum (muted)",
+   "102": "Log drum high",
+   "103": "Log drum low",
+   "36": "Cajón bass",
+   "35": "Cajón bass",
+   "38": "Cajón slap",
+   "40": "Cajón slap",
+   "37": "Claves",
+   "48": "Bongo high",
+   "50": "Bongo high",
+   "45": "Bongo low",
+   "47": "Bongo low",
+   "43": "Conga (open)",
+   "41": "Tumba (open)",
+   "42": "Shaker",
+   "44": "Shaker",
+   "46": "Tambourine",
+   "51": "Cowbell",
+   "53": "Agogô high",
+   "59": "Agogô low",
+   "49": "Triangle (open)",
+   "55": "Triangle (muted)",
+   "57": "Bell tree",
+   "52": "Sleigh bells"
+  },
+  "calibrate": {
+   "keys": [
+    89,
+    63
+   ],
+   "target": 0.5
+  },
+  "sounds": [
+   {
+    "key": 88,
+    "name": "Cajón bass",
+    "family": "Hand drums"
+   },
+   {
+    "key": 89,
+    "name": "Cajón slap",
+    "family": "Hand drums"
+   },
+   {
+    "key": 60,
+    "name": "Bongo high",
+    "family": "Hand drums"
+   },
+   {
+    "key": 61,
+    "name": "Bongo low",
+    "family": "Hand drums"
+   },
+   {
+    "key": 93,
+    "name": "Bongo high (muted)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 94,
+    "name": "Bongo low (muted)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 63,
+    "name": "Quinto (open)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 62,
+    "name": "Quinto (muted)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 64,
+    "name": "Conga (open)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 92,
+    "name": "Conga (muted)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 90,
+    "name": "Tumba (open)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 91,
+    "name": "Tumba (muted)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 97,
+    "name": "Darbuka doum",
+    "family": "Hand drums"
+   },
+   {
+    "key": 98,
+    "name": "Darbuka tek",
+    "family": "Hand drums"
+   },
+   {
+    "key": 99,
+    "name": "Darbuka ka",
+    "family": "Hand drums"
+   },
+   {
+    "key": 100,
+    "name": "Frame drum",
+    "family": "Hand drums"
+   },
+   {
+    "key": 101,
+    "name": "Frame drum (muted)",
+    "family": "Hand drums"
+   },
+   {
+    "key": 102,
+    "name": "Log drum high",
+    "family": "Hand drums"
+   },
+   {
+    "key": 103,
+    "name": "Log drum low",
+    "family": "Hand drums"
+   },
+   {
+    "key": 87,
+    "name": "Concert bass drum",
+    "family": "Hand drums"
+   },
+   {
+    "key": 82,
+    "name": "Shaker",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 70,
+    "name": "Maracas",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 69,
+    "name": "Cabasa",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 54,
+    "name": "Tambourine",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 96,
+    "name": "Tambourine shake",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 83,
+    "name": "Sleigh bells",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 73,
+    "name": "Guiro (short)",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 74,
+    "name": "Guiro (long)",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 39,
+    "name": "Hand clap",
+    "family": "Shakers and claps"
+   },
+   {
+    "key": 56,
+    "name": "Cowbell",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 95,
+    "name": "Cowbell (muted)",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 67,
+    "name": "Agogô high",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 68,
+    "name": "Agogô low",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 75,
+    "name": "Claves",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 76,
+    "name": "Wood block high",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 77,
+    "name": "Wood block low",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 81,
+    "name": "Triangle (open)",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 80,
+    "name": "Triangle (muted)",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 84,
+    "name": "Bell tree",
+    "family": "Bells and wood"
+   },
+   {
+    "key": 58,
+    "name": "Vibraslap",
+    "family": "Bells and wood"
+   }
+  ]
+ }
+}

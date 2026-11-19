@@ -1,0 +1,352 @@
+// Simple DAW Percussion
+// Samples: Versilian Community Sample Library (VCSL) by Versilian Studios LLC, CC0 1.0.
+// https://github.com/sgossner/VCSL
+// Mapping by Simple DAW (made by tools/make_percussion_kit.py). Public domain (CC0 1.0).
+
+<control>
+default_path=VCSL/
+
+<global>
+amp_veltrack=85
+
+// Hand clap
+<group> group_label=Hand clap
+key=39 pan=0 pitch_random=12 amp_random=1.5
+<region> lovel=1 hivel=127 lorand=0.0000 hirand=0.1667 volume=-2.67 sample=Idiophones/Struck Idiophones/Claps/Clap_rr1.wav
+<region> lovel=1 hivel=127 lorand=0.1667 hirand=0.3333 volume=-2.67 sample=Idiophones/Struck Idiophones/Claps/Clap_rr2.wav
+<region> lovel=1 hivel=127 lorand=0.3333 hirand=0.5000 volume=-2.68 offset=38 sample=Idiophones/Struck Idiophones/Claps/Clap_rr3.wav
+<region> lovel=1 hivel=127 lorand=0.5000 hirand=0.6667 volume=-2.67 offset=62 sample=Idiophones/Struck Idiophones/Claps/Clap_rr4.wav
+<region> lovel=1 hivel=127 lorand=0.6667 hirand=0.8333 volume=-2.67 offset=22 sample=Idiophones/Struck Idiophones/Claps/Clap_rr5.wav
+<region> lovel=1 hivel=127 lorand=0.8333 hirand=1.0000 volume=-2.68 offset=29 sample=Idiophones/Struck Idiophones/Claps/Clap_rr6.wav
+
+// Tambourine
+<group> group_label=Tambourine
+key=54 pan=30 pitch_random=14 amp_random=2.0
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=20.76 offset=575 sample=Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Hit_v1_rr1_Mid.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=19.25 offset=670 sample=Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Hit_v1_rr1_Mid.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=8.48 offset=462 sample=Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Hit_v2_rr1_Mid.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=6.68 offset=356 sample=Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Hit_v2_rr2_Mid.wav
+
+// Cowbell
+<group> group_label=Cowbell
+key=56 pan=15 pitch_random=4 amp_random=1.2
+<region> lovel=1 hivel=50 volume=19.91 offset=419 sample=Idiophones/Struck Idiophones/Cowbells/Cowbell1_Hit_v2_rr1_Mid.wav
+<region> lovel=51 hivel=95 volume=13.98 offset=399 sample=Idiophones/Struck Idiophones/Cowbells/Cowbell1_Hit_v3_rr1_Mid.wav
+<region> lovel=96 hivel=127 volume=6.48 offset=445 sample=Idiophones/Struck Idiophones/Cowbells/Cowbell1_Hit_v4_rr1_Mid.wav
+
+// Vibraslap
+<group> group_label=Vibraslap
+key=58 pan=-25 pitch_random=3 amp_random=1.0 note_polyphony=2
+<region> lovel=1 hivel=127 lorand=0.0000 hirand=0.2500 volume=14.80 offset=795 sample=Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr1.wav
+<region> lovel=1 hivel=127 lorand=0.2500 hirand=0.5000 volume=16.23 offset=724 sample=Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr2.wav
+<region> lovel=1 hivel=127 lorand=0.5000 hirand=0.7500 volume=14.83 offset=31 sample=Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr3.wav
+<region> lovel=1 hivel=127 lorand=0.7500 hirand=1.0000 volume=17.48 offset=639 sample=Idiophones/Struck Idiophones/Vibraslap/Legacy/vibraslap_rr4.wav
+
+// Bongo high
+<group> group_label=Bongo high
+key=60 pan=-20 pitch_random=8 amp_random=1.5 group=60 off_by=93
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=29.49 offset=316 sample=Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v1_rr1_Mid.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=29.61 offset=302 sample=Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v1_rr2_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=20.63 offset=359 sample=Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v2_rr1_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=22.86 offset=327 sample=Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v2_rr2_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=8.87 offset=304 sample=Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v3_rr1_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=10.95 offset=335 sample=Membranophones/Struck Membranophones/Bongos/BongoH_Hit1_v3_rr2_Mid.wav
+
+// Bongo low
+<group> group_label=Bongo low
+key=61 pan=-12 pitch_random=8 amp_random=1.5 group=61 off_by=94
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=28.63 offset=331 sample=Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v1_rr1_Mid.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=32.07 offset=361 sample=Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v1_rr2_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=19.49 offset=351 sample=Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v2_rr1_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=16.54 offset=327 sample=Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v2_rr2_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=8.85 offset=415 sample=Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v3_rr1_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=7.64 offset=328 sample=Membranophones/Struck Membranophones/Bongos/BongoL_Hit1_v3_rr2_Mid.wav
+
+// Quinto (muted)
+<group> group_label=Quinto (muted)
+key=62 pan=12 pitch_random=8 amp_random=1.5 group=62
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=35.15 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v1_rr1_Sum.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=35.62 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v1_rr2_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=18.32 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v2_rr1_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=17.60 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitFM1_v2_rr2_Sum.wav
+
+// Quinto (open)
+<group> group_label=Quinto (open)
+key=63 pan=12 pitch_random=8 amp_random=1.5 group=63 off_by=62
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=31.02 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitN_v1_rr1_Sum.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=30.84 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitN_v1_rr2_Sum.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=22.18 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitN_v2_rr1_Sum.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=22.13 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitN_v2_rr2_Sum.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=12.33 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitN_v3_rr1_Sum.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=12.10 sample=Membranophones/Struck Membranophones/Conga/Quinto_HitN_v3_rr2_Sum.wav
+
+// Conga (open)
+<group> group_label=Conga (open)
+key=64 pan=22 pitch_random=8 amp_random=1.5 group=64 off_by=92
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=31.76 sample=Membranophones/Struck Membranophones/Conga/Conga_HitN_v1_rr1_Sum.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=29.18 sample=Membranophones/Struck Membranophones/Conga/Conga_HitN_v1_rr2_Sum.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=19.00 sample=Membranophones/Struck Membranophones/Conga/Conga_HitN_v2_rr1_Sum.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=18.44 sample=Membranophones/Struck Membranophones/Conga/Conga_HitN_v2_rr2_Sum.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=15.42 sample=Membranophones/Struck Membranophones/Conga/Conga_HitN_v3_rr1_Sum.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=15.79 sample=Membranophones/Struck Membranophones/Conga/Conga_HitN_v3_rr2_Sum.wav
+
+// Agogô high
+<group> group_label=Agogô high
+key=67 pan=-15 pitch_random=4 amp_random=1.2
+<region> lovel=1 hivel=50 volume=33.51 offset=311 sample=Idiophones/Struck Idiophones/Agogo Bells/Agogo_High_v1_rr1_Mid.wav
+<region> lovel=51 hivel=95 volume=21.71 offset=322 sample=Idiophones/Struck Idiophones/Agogo Bells/Agogo_High_v2_rr1_Mid.wav
+<region> lovel=96 hivel=127 volume=13.94 offset=310 sample=Idiophones/Struck Idiophones/Agogo Bells/Agogo_High_v3_rr1_Mid.wav
+
+// Agogô low
+<group> group_label=Agogô low
+key=68 pan=-15 pitch_random=4 amp_random=1.2
+<region> lovel=1 hivel=80 volume=31.32 offset=333 sample=Idiophones/Struck Idiophones/Agogo Bells/Agogo_Low_v1_rr1_Mid.wav
+<region> lovel=81 hivel=127 volume=17.72 offset=328 sample=Idiophones/Struck Idiophones/Agogo Bells/Agogo_Low_v2_rr1_Mid.wav
+
+// Cabasa
+<group> group_label=Cabasa
+key=69 pan=20 pitch_random=14 amp_random=2.0
+<region> lovel=1 hivel=127 seq_length=2 seq_position=1 volume=12.98 offset=354 sample=Idiophones/Struck Idiophones/Cabasa/Cabasa1_Hit_rr1_Mid.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=2 volume=12.36 offset=334 sample=Idiophones/Struck Idiophones/Cabasa/Cabasa1_Hit_rr2_Mid.wav
+
+// Maracas
+<group> group_label=Maracas
+key=70 pan=-30 pitch_random=14 amp_random=2.0
+<region> lovel=1 hivel=127 seq_length=2 seq_position=1 volume=5.81 offset=67 sample=Idiophones/Struck Idiophones/Shaker, Large/LShaker_Hit_rr1_Mid.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=2 volume=4.99 offset=261 sample=Idiophones/Struck Idiophones/Shaker, Large/LShaker_Hit_rr2_Mid.wav
+
+// Guiro (short)
+<group> group_label=Guiro (short)
+key=73 pan=25 pitch_random=14 amp_random=2.0
+<region> lovel=1 hivel=127 seq_length=2 seq_position=1 volume=25.74 offset=310 sample=Idiophones/Struck Idiophones/Guiro/Guiro_Hit_rr1_Mid.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=2 volume=22.73 offset=312 sample=Idiophones/Struck Idiophones/Guiro/Guiro_Hit_rr2_Mid.wav
+
+// Guiro (long)
+<group> group_label=Guiro (long)
+key=74 pan=25 pitch_random=14 amp_random=2.0 note_polyphony=2
+<region> lovel=1 hivel=127 seq_length=2 seq_position=1 volume=28.50 offset=352 sample=Idiophones/Struck Idiophones/Guiro/Guiro_Med_rr1_Mid.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=2 volume=24.90 offset=317 sample=Idiophones/Struck Idiophones/Guiro/Guiro_Fast_rr1_Mid.wav
+
+// Claves
+<group> group_label=Claves
+key=75 pan=-8 pitch_random=4 amp_random=1.2
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=33.13 offset=324 sample=Idiophones/Struck Idiophones/Claves/Claves1_Hit_v1_rr1_Mid.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=31.19 offset=311 sample=Idiophones/Struck Idiophones/Claves/Claves2_Hit_v1_rr1_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=18.94 offset=313 sample=Idiophones/Struck Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=17.36 offset=311 sample=Idiophones/Struck Idiophones/Claves/Claves2_Hit_v2_rr1_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=10.56 offset=318 sample=Idiophones/Struck Idiophones/Claves/Claves1_Hit_v3_rr1_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=12.13 offset=314 sample=Idiophones/Struck Idiophones/Claves/Claves2_Hit_v3_rr1_Mid.wav
+
+// Wood block high
+<group> group_label=Wood block high
+key=76 pan=10 pitch_random=4 amp_random=1.2
+<region> lovel=1 hivel=40 lorand=0.0000 hirand=0.3333 volume=25.27 offset=464 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr1.wav
+<region> lovel=1 hivel=40 lorand=0.3333 hirand=0.6667 volume=25.72 offset=1665 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr2.wav
+<region> lovel=1 hivel=40 lorand=0.6667 hirand=1.0000 volume=24.41 offset=828 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr3.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=1 volume=16.75 offset=1230 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_mp.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=2 volume=13.56 offset=842 sample=Idiophones/Struck Idiophones/Woodblock/wood_click3_vl1.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=1 volume=3.76 offset=206 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_f_rr1.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=2 volume=3.94 offset=705 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_f_rr2.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=1 volume=1.55 offset=828 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_ff.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=2 volume=5.23 offset=589 sample=Idiophones/Struck Idiophones/Woodblock/wood_click3_vl2.wav
+
+// Wood block low
+<group> group_label=Wood block low
+key=77 pan=10 pitch_random=4 amp_random=1.2 transpose=-5
+<region> lovel=1 hivel=40 lorand=0.0000 hirand=0.3333 volume=25.27 offset=464 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr1.wav
+<region> lovel=1 hivel=40 lorand=0.3333 hirand=0.6667 volume=25.72 offset=1665 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr2.wav
+<region> lovel=1 hivel=40 lorand=0.6667 hirand=1.0000 volume=24.41 offset=828 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_pp_rr3.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=1 volume=16.75 offset=1230 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_mp.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=2 volume=13.56 offset=842 sample=Idiophones/Struck Idiophones/Woodblock/wood_click3_vl1.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=1 volume=3.76 offset=206 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_f_rr1.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=2 volume=3.94 offset=705 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_f_rr2.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=1 volume=1.55 offset=828 sample=Idiophones/Struck Idiophones/Woodblock/wood_click_ff.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=2 volume=5.23 offset=589 sample=Idiophones/Struck Idiophones/Woodblock/wood_click3_vl2.wav
+
+// Triangle (muted)
+<group> group_label=Triangle (muted)
+key=80 pan=35 pitch_random=3 amp_random=1.0 group=80
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=24.41 offset=309 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v1_rr1_Mid.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=24.60 offset=306 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v1_rr2_Mid.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=13.59 offset=318 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v2_rr1_Mid.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=14.76 offset=312 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_HitM_v2_rr2_Mid.wav
+
+// Triangle (open)
+<group> group_label=Triangle (open)
+key=81 pan=35 pitch_random=3 amp_random=1.0 group=81 off_by=80 note_polyphony=4
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=26.26 offset=308 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v1_rr1_Mid.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=26.26 offset=313 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v1_rr2_Mid.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=16.34 offset=310 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v2_rr1_Mid.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=16.91 offset=314 sample=Idiophones/Struck Idiophones/Triangles/Triangle3_Hit_v2_rr2_Mid.wav
+
+// Shaker
+<group> group_label=Shaker
+key=82 pan=-30 pitch_random=14 amp_random=2.0
+<region> lovel=1 hivel=127 seq_length=2 seq_position=1 lorand=0.0000 hirand=0.5000 volume=22.67 offset=34 sample=Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Down_rr1.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=1 lorand=0.5000 hirand=1.0000 volume=23.42 sample=Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Down_rr2.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=2 lorand=0.0000 hirand=0.5000 volume=15.04 offset=419 sample=Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Up_rr1.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=2 lorand=0.5000 hirand=1.0000 volume=15.75 offset=371 sample=Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerHighFaster_Up_rr2.wav
+
+// Sleigh bells
+<group> group_label=Sleigh bells
+key=83 pan=30 pitch_random=14 amp_random=2.0 note_polyphony=4
+<region> lovel=1 hivel=127 seq_length=2 seq_position=1 volume=15.48 offset=326 sample=Idiophones/Struck Idiophones/Sleigh Bells/Sleighbells_Hit_rr1_Mid.wav
+<region> lovel=1 hivel=127 seq_length=2 seq_position=2 volume=15.37 offset=331 sample=Idiophones/Struck Idiophones/Sleigh Bells/Sleighbells_Hit_rr2_Mid.wav
+
+// Bell tree
+<group> group_label=Bell tree
+key=84 pan=40 pitch_random=3 amp_random=1.0 note_polyphony=3
+<region> lovel=1 hivel=127 lorand=0.0000 hirand=0.3333 volume=26.75 offset=418 sample=Idiophones/Struck Idiophones/Bell Tree/Stroke/BellTree_Stroke_3_Mid.wav
+<region> lovel=1 hivel=127 lorand=0.3333 hirand=0.6667 volume=26.65 offset=432 sample=Idiophones/Struck Idiophones/Bell Tree/Stroke/BellTree_Stroke_4_Mid.wav
+<region> lovel=1 hivel=127 lorand=0.6667 hirand=1.0000 volume=23.84 offset=447 sample=Idiophones/Struck Idiophones/Bell Tree/Stroke/BellTree_Stroke_6_Mid.wav
+
+// Concert bass drum
+<group> group_label=Concert bass drum
+key=87 pan=0 pitch_random=8 amp_random=1.5 note_polyphony=3
+<region> lovel=1 hivel=40 seq_length=2 seq_position=1 volume=21.65 offset=5 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v2_rr1_Sum.wav
+<region> lovel=1 hivel=40 seq_length=2 seq_position=2 volume=22.45 offset=47 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v2_rr2_Sum.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=1 volume=16.46 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v3_rr1_Sum.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=2 volume=17.23 offset=20 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v3_rr2_Sum.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=1 volume=8.90 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v5_rr1_Sum.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=2 volume=9.27 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v5_rr2_Sum.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=1 volume=3.46 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v7_rr1_Sum.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=2 volume=3.24 sample=Membranophones/Struck Membranophones/Bass Drum 1/BDrumNew_hit_v7_rr2_Sum.wav
+
+// Cajón bass
+<group> group_label=Cajón bass
+key=88 pan=0 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=40 seq_length=2 seq_position=1 volume=20.78 offset=141 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit2_pp_rr1.wav
+<region> lovel=1 hivel=40 seq_length=2 seq_position=2 volume=20.38 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit2_pp_rr2.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=1 volume=12.72 offset=105 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit3_p_rr1.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=2 volume=13.26 offset=99 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit3_p_rr2.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=1 volume=3.11 offset=66 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit3_mp_rr1.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=2 volume=3.95 offset=109 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit3_mp_rr2.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=1 volume=-0.45 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit3_f_rr1.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=2 volume=0.55 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit3_f_rr2.wav
+
+// Cajón slap
+<group> group_label=Cajón slap
+key=89 pan=0 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=14.37 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit1_mp_rr1.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=14.79 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit1_mp_rr2.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=6.98 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit1_f_rr1.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=6.51 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit1_f_rr2.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=0.03 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit1_fff_rr1.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=0.73 sample=Idiophones/Struck Idiophones/Cajon/Cajon_hit1_fff_rr2.wav
+
+// Tumba (open)
+<group> group_label=Tumba (open)
+key=90 pan=30 pitch_random=8 amp_random=1.5 group=90 off_by=91
+<region> lovel=1 hivel=40 volume=33.83 offset=9 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitN_v1_rr2_Sum.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=1 volume=29.16 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitN_v2_rr1_Sum.wav
+<region> lovel=41 hivel=72 seq_length=2 seq_position=2 volume=28.73 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitN_v2_rr2_Sum.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=1 volume=24.15 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitN_v3_rr1_Sum.wav
+<region> lovel=73 hivel=100 seq_length=2 seq_position=2 volume=24.59 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitN_v3_rr2_Sum.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=1 volume=18.89 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitN_v4_rr1_Sum.wav
+<region> lovel=101 hivel=127 seq_length=2 seq_position=2 volume=16.17 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitN_v4_rr2_Sum.wav
+
+// Tumba (muted)
+<group> group_label=Tumba (muted)
+key=91 pan=30 pitch_random=8 amp_random=1.5 group=91
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=32.63 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v2_rr1_Sum.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=28.98 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v2_rr2_Sum.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=20.83 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v3_rr1_Sum.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=20.83 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v3_rr2_Sum.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=14.67 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v4_rr1_Sum.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=13.47 sample=Membranophones/Struck Membranophones/Conga/Tumba_HitFM_v4_rr2_Sum.wav
+
+// Conga (muted)
+<group> group_label=Conga (muted)
+key=92 pan=22 pitch_random=8 amp_random=1.5 group=92
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=25.75 sample=Membranophones/Struck Membranophones/Conga/Conga_HitFM_v1_rr1_Sum.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=24.78 sample=Membranophones/Struck Membranophones/Conga/Conga_HitFM_v1_rr2_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=10.88 sample=Membranophones/Struck Membranophones/Conga/Conga_HitFM_v2_rr1_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=12.92 sample=Membranophones/Struck Membranophones/Conga/Conga_HitFM_v2_rr2_Sum.wav
+
+// Bongo high (muted)
+<group> group_label=Bongo high (muted)
+key=93 pan=-20 pitch_random=8 amp_random=1.5 group=93
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=18.41 offset=319 sample=Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v1_rr1_Mid.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=18.40 offset=324 sample=Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v1_rr2_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=11.90 offset=327 sample=Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v2_rr1_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=11.98 offset=326 sample=Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v2_rr2_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=9.38 offset=335 sample=Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v3_rr1_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=8.34 offset=358 sample=Membranophones/Struck Membranophones/Bongos/BongoH_HitMuted1_v3_rr2_Mid.wav
+
+// Bongo low (muted)
+<group> group_label=Bongo low (muted)
+key=94 pan=-12 pitch_random=8 amp_random=1.5 group=94
+<region> lovel=1 hivel=50 seq_length=2 seq_position=1 volume=31.33 offset=344 sample=Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v1_rr1_Mid.wav
+<region> lovel=1 hivel=50 seq_length=2 seq_position=2 volume=33.14 offset=345 sample=Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v1_rr2_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=1 volume=12.56 offset=326 sample=Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v2_rr1_Mid.wav
+<region> lovel=51 hivel=95 seq_length=2 seq_position=2 volume=12.93 offset=324 sample=Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v2_rr2_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=1 volume=7.51 offset=325 sample=Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v3_rr1_Mid.wav
+<region> lovel=96 hivel=127 seq_length=2 seq_position=2 volume=6.93 offset=319 sample=Membranophones/Struck Membranophones/Bongos/BongoL_HitMuted2_v3_rr2_Mid.wav
+
+// Cowbell (muted)
+<group> group_label=Cowbell (muted)
+key=95 pan=15 pitch_random=4 amp_random=1.2
+<region> lovel=1 hivel=80 volume=12.37 offset=327 sample=Idiophones/Struck Idiophones/Cowbells/Cowbell1_Muted_v2_rr1_Mid.wav
+<region> lovel=81 hivel=127 volume=2.06 offset=331 sample=Idiophones/Struck Idiophones/Cowbells/Cowbell1_Muted_v3_rr1_Mid.wav
+
+// Tambourine shake
+<group> group_label=Tambourine shake
+key=96 pan=30 pitch_random=14 amp_random=2.0
+<region> lovel=1 hivel=127 lorand=0.0000 hirand=0.2500 volume=17.43 offset=5478 sample=Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Shake_rr1_Mid.wav
+<region> lovel=1 hivel=127 lorand=0.2500 hirand=0.5000 volume=17.81 offset=1292 sample=Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Shake_rr2_Mid.wav
+<region> lovel=1 hivel=127 lorand=0.5000 hirand=0.7500 volume=15.88 offset=3321 sample=Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Shake_rr3_Mid.wav
+<region> lovel=1 hivel=127 lorand=0.7500 hirand=1.0000 volume=17.47 offset=4031 sample=Idiophones/Struck Idiophones/Tambourine 2/Tamb2_Shake_rr4_Mid.wav
+
+// Darbuka doum
+<group> group_label=Darbuka doum
+key=97 pan=-5 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=13.87 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl1_rr1.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=13.95 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl1_rr2.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=0.20 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl2_rr1.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=-0.55 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_1_hit_vl2_rr2.wav
+
+// Darbuka tek
+<group> group_label=Darbuka tek
+key=98 pan=-5 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=12.85 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl1_rr1.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=12.99 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl1_rr2.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=5.02 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl2_rr1.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=6.31 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_2_hit_vl2_rr2.wav
+
+// Darbuka ka
+<group> group_label=Darbuka ka
+key=99 pan=-5 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=21.08 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl1_rr1.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=20.63 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl1_rr2.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=10.90 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl2_rr1.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=11.94 sample=Membranophones/Struck Membranophones/Darbuka/Darbuka_3_hit_vl2_rr2.wav
+
+// Frame drum
+<group> group_label=Frame drum
+key=100 pan=0 pitch_random=8 amp_random=1.5 note_polyphony=3
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=29.32 offset=3 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v2_rr1_Sum.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=27.81 offset=160 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v2_rr2_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=11.36 offset=81 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v3_rr1_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=10.41 offset=102 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_Hit_v3_rr2_Sum.wav
+
+// Frame drum (muted)
+<group> group_label=Frame drum (muted)
+key=101 pan=0 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=80 seq_length=2 seq_position=1 volume=28.42 offset=220 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v2_rr1_Sum.wav
+<region> lovel=1 hivel=80 seq_length=2 seq_position=2 volume=27.26 offset=145 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v2_rr2_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=1 volume=8.72 offset=80 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v3_rr1_Sum.wav
+<region> lovel=81 hivel=127 seq_length=2 seq_position=2 volume=9.28 offset=58 sample=Membranophones/Struck Membranophones/Frame Drum/HDrumL_HitMuted_v3_rr2_Sum.wav
+
+// Log drum high
+<group> group_label=Log drum high
+key=102 pan=-10 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=50 volume=26.65 sample=Idiophones/Struck Idiophones/Slit Drum/LogDrumHi_MedM_v1_rr1_Sum.wav
+<region> lovel=51 hivel=95 volume=21.34 sample=Idiophones/Struck Idiophones/Slit Drum/LogDrumHi_MedM_v2_rr1_Sum.wav
+<region> lovel=96 hivel=127 volume=13.40 sample=Idiophones/Struck Idiophones/Slit Drum/LogDrumHi_MedM_v3_rr1_Sum.wav
+
+// Log drum low
+<group> group_label=Log drum low
+key=103 pan=10 pitch_random=8 amp_random=1.5
+<region> lovel=1 hivel=50 volume=28.13 sample=Idiophones/Struck Idiophones/Slit Drum/LogDrumLo_MedM_v1_rr1_Sum.wav
+<region> lovel=51 hivel=95 volume=20.83 sample=Idiophones/Struck Idiophones/Slit Drum/LogDrumLo_MedM_v2_rr1_Sum.wav
+<region> lovel=96 hivel=127 volume=16.15 sample=Idiophones/Struck Idiophones/Slit Drum/LogDrumLo_MedM_v3_rr1_Sum.wav

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simple DAW</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23272B36' stroke='%23D9A65A' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23F04A3E'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- Top bar: song + global actions -->
+    <header class="topbar">
+      <div class="wordmark" aria-label="Simple DAW">Simple DAW</div>
+      <div class="song">
+        <input id="song-name" class="song-name" type="text" value="Untitled song" aria-label="Song name" spellcheck="false" maxlength="80">
+        <button class="btn btn-ghost btn-icon" id="btn-song-menu" data-tip="Songs: new, open, import" aria-label="Song menu"><span data-icon="chevron"></span></button>
+        <span class="save-state" id="save-state" aria-live="polite"></span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost btn-icon" id="btn-undo" data-tip="Undo" data-key="Ctrl+Z" aria-label="Undo"><span data-icon="undo"></span></button>
+        <button class="btn btn-ghost btn-icon" id="btn-redo" data-tip="Redo" data-key="Ctrl+Y" aria-label="Redo"><span data-icon="redo"></span></button>
+        <span class="divider"></span>
+        <button class="btn btn-sound" id="btn-sound" data-tip="Choose what your drums sound like" aria-haspopup="dialog">
+          <span class="sound-led" id="sound-led"></span>
+          <span class="sound-label"><span class="sound-kind" id="sound-kind">Sound</span><span class="sound-name" id="sound-name">Black Pearl kit</span></span>
+          <span data-icon="chevron"></span>
+        </button>
+        <button class="btn" id="btn-mix" data-tip="Volume of drums, backing track and click" aria-haspopup="dialog"><span data-icon="sliders"></span>Mix</button>
+        <button class="btn btn-primary" id="btn-export" data-tip="Save your drums as a WAV or MIDI file" data-key="Ctrl+E"><span data-icon="export"></span>Export</button>
+        <span class="divider"></span>
+        <button class="btn btn-ghost btn-icon" id="btn-settings" data-tip="Settings: drum module, note map, timing" aria-label="Settings"><span data-icon="gear"></span></button>
+        <button class="btn btn-ghost btn-icon" id="btn-help" data-tip="Help and keyboard shortcuts" data-key="?" aria-label="Help"><span data-icon="help"></span></button>
+      </div>
+    </header>
+
+    <!-- Transport -->
+    <section class="transport" aria-label="Transport">
+      <div class="transport-main">
+        <button class="rec-pad" id="btn-record" data-tip="Record" data-key="R" aria-label="Record" aria-pressed="false">
+          <span class="rec-pad-ring"></span><span class="rec-pad-dot"></span>
+        </button>
+        <button class="play-btn" id="btn-play" data-tip="Play / stop" data-key="Space" aria-label="Play"><span data-icon="play"></span></button>
+        <button class="btn btn-ghost btn-icon" id="btn-home" data-tip="Back to the start" data-key="Home" aria-label="Back to the start"><span data-icon="home"></span></button>
+      </div>
+
+      <div class="readout" id="readout" data-tip="Where the playhead is">
+        <div class="readout-main"><span id="pos-bar">1</span><span class="readout-sep">.</span><span id="pos-beat">1</span></div>
+        <div class="readout-sub"><span class="readout-unit">bar.beat</span><span id="pos-time">0:00.0</span></div>
+      </div>
+
+      <div class="tempo-group">
+        <label class="field-tempo" data-tip="Tempo in beats per minute">
+          <input id="tempo" type="number" min="30" max="300" step="1" value="120" aria-label="Tempo">
+          <span class="unit">BPM</span>
+        </label>
+        <button class="btn btn-small" id="btn-tap" data-tip="Tap 4 times or more to set the tempo" data-key="T">Tap</button>
+        <select id="timesig" class="select-compact" data-tip="Time signature" aria-label="Time signature">
+          <option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option>
+          <option value="5/4">5/4</option><option value="6/8">6/8</option><option value="7/8">7/8</option>
+          <option value="12/8">12/8</option>
+        </select>
+      </div>
+
+      <div class="toggles">
+        <button class="toggle" id="btn-click" data-tip="Metronome click" data-key="M" aria-pressed="true"><span data-icon="click"></span>Click</button>
+        <div class="toggle-split">
+          <button class="toggle" id="btn-countin" data-tip="Count in before recording starts" aria-pressed="true"><span data-icon="countin"></span><span id="countin-label">Count-in 1 bar</span></button>
+        </div>
+        <div class="seg" role="group" aria-label="When you record again" data-tip="Replace: new playing replaces what was there. Add: keeps it and adds on top.">
+          <button class="seg-btn" id="rec-mode-replace" aria-pressed="true">Replace</button>
+          <button class="seg-btn" id="rec-mode-add" aria-pressed="false">Add</button>
+        </div>
+        <button class="toggle" id="btn-loop" data-tip="Loop the highlighted part. Drag on the ruler to set it." data-key="L" aria-pressed="false"><span data-icon="loop"></span>Loop</button>
+      </div>
+
+      <button class="midi-chip" id="midi-chip" data-tip="Drum module connection">
+        <span class="midi-led" id="midi-led"></span>
+        <span class="midi-text"><span class="midi-title" id="midi-title">Looking for your drum module</span><span class="midi-sub" id="midi-sub">Connect it with a USB cable</span></span>
+      </button>
+    </section>
+
+    <!-- Workspace -->
+    <main class="workspace" id="workspace">
+      <div class="ws-row ws-ruler">
+        <div class="ws-head ruler-head">
+          <button class="btn btn-ghost btn-small" id="btn-lanes" data-tip="Show or hide drum lanes"><span data-icon="lanes"></span>Drums<span data-icon="chevron"></span></button>
+        </div>
+        <div class="ws-canvas"><canvas id="cv-ruler" aria-label="Timeline ruler. Click to move the playhead, drag to set a loop."></canvas></div>
+      </div>
+
+      <div class="ws-row ws-backing" id="backing-row" hidden>
+        <div class="ws-head backing-head">
+          <span class="lane-led" style="--c: var(--fam-backing)"></span>
+          <span class="backing-name" id="backing-name">Backing track</span>
+          <button class="lane-btn" id="btn-backing-mute" data-tip="Mute backing track" aria-pressed="false"><span data-icon="speaker"></span></button>
+          <button class="lane-btn" id="btn-backing-remove" data-tip="Remove backing track"><span data-icon="close"></span></button>
+        </div>
+        <div class="ws-canvas"><canvas id="cv-backing" aria-label="Backing track. Drag to line it up."></canvas></div>
+      </div>
+
+      <div class="ws-lanes" id="lanes-viewport">
+        <div class="lanes-inner" id="lanes-inner">
+          <div class="lane-heads" id="lane-heads"></div>
+          <div class="ws-canvas lanes-canvas-wrap"><canvas id="cv-grid" tabindex="0" aria-label="Drum hits"></canvas></div>
+        </div>
+        <div class="empty-state" id="empty-state" hidden>
+          <div class="empty-card">
+            <h2>Press record and play your kit</h2>
+            <p>Your module keeps sounding the way it always does while you play. Simple DAW captures every hit, then plays it back with a realistic kit.</p>
+            <ol class="empty-steps">
+              <li><span class="step-n">1</span>Plug your drum module into the computer with USB.</li>
+              <li><span class="step-n">2</span>Hit any pad. Its name lights up on the left.</li>
+              <li><span class="step-n">3</span>Press <kbd>R</kbd> or the red button, wait for the count-in, and play.</li>
+            </ol>
+            <div class="empty-actions">
+              <button class="btn" id="empty-import-midi"><span data-icon="file"></span>Open a MIDI file instead</button>
+              <button class="btn" id="empty-backing"><span data-icon="music"></span>Add a song to play along to</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ws-row ws-vel">
+        <div class="ws-head vel-head"><span>Velocity</span><span class="vel-hint">how hard each hit is</span></div>
+        <div class="ws-canvas"><canvas id="cv-vel" aria-label="Velocity of hits. Drag up or down to change how hard hits are."></canvas></div>
+      </div>
+
+      <div class="ws-row ws-overview">
+        <div class="ws-head overview-head">
+          <button class="btn btn-ghost btn-icon btn-tiny" id="btn-zoom-out" data-tip="Zoom out" data-key="−" aria-label="Zoom out"><span data-icon="minus"></span></button>
+          <input type="range" id="zoom" min="0" max="100" value="45" aria-label="Zoom" data-tip="Zoom">
+          <button class="btn btn-ghost btn-icon btn-tiny" id="btn-zoom-in" data-tip="Zoom in" data-key="+" aria-label="Zoom in"><span data-icon="plus"></span></button>
+          <button class="btn btn-ghost btn-small" id="btn-fit" data-tip="Show the whole song" data-key="F">Fit</button>
+        </div>
+        <div class="ws-canvas"><canvas id="cv-overview" aria-label="Whole song overview. Drag the frame to move around."></canvas></div>
+      </div>
+    </main>
+
+    <!-- Edit toolbar -->
+    <footer class="toolbar" aria-label="Editing tools">
+      <div class="seg" role="group" aria-label="Tool">
+        <button class="seg-btn" id="tool-select" aria-pressed="true" data-tip="Select and move hits" data-key="V"><span data-icon="cursor"></span>Select</button>
+        <button class="seg-btn" id="tool-draw" aria-pressed="false" data-tip="Click to add or remove hits" data-key="D"><span data-icon="pencil"></span>Draw</button>
+      </div>
+      <div class="snap-group">
+        <button class="toggle" id="btn-snap" aria-pressed="true" data-tip="Snap hits to the grid while moving and drawing" data-key="G"><span data-icon="magnet"></span>Snap</button>
+        <select id="grid" class="select-compact" aria-label="Grid size" data-tip="Grid size">
+          <option value="4">1/4</option><option value="8">1/8</option><option value="8t">1/8 triplet</option>
+          <option value="16" selected>1/16</option><option value="16t">1/16 triplet</option><option value="32">1/32</option>
+        </select>
+      </div>
+      <span class="divider"></span>
+      <button class="btn" id="btn-quantize" data-tip="Line hits up with the grid" data-key="Q"><span data-icon="quantize"></span>Quantize</button>
+      <button class="btn" id="btn-humanize" data-tip="Add small natural variations"><span data-icon="humanize"></span>Humanize</button>
+      <button class="btn" id="btn-velocity" data-tip="Make hits louder or softer"><span data-icon="velocity"></span>Velocity</button>
+      <button class="btn btn-ghost" id="btn-delete" data-tip="Delete selected hits" data-key="Del"><span data-icon="trash"></span>Delete</button>
+      <span class="toolbar-spacer"></span>
+      <button class="btn btn-takes" id="btn-takes" data-tip="Every recording is kept as a take"><span data-icon="takes"></span><span id="takes-label">Take 1</span><span data-icon="chevron"></span></button>
+    </footer>
+    <div class="hintbar">
+      <span class="hint" id="hint">Tip: press R to record, Space to play.</span>
+      <span class="engine-status" id="engine-status"></span>
+    </div>
+  </div>
+
+  <div class="popover-layer" id="popover-layer"></div>
+  <div class="modal-layer" id="modal-layer" hidden></div>
+  <div class="toast-layer" id="toast-layer" aria-live="polite"></div>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <input type="file" id="file-midi" accept=".mid,.midi,audio/midi" hidden>
+  <input type="file" id="file-audio" accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac" hidden>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
