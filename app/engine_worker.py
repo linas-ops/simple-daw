@@ -250,7 +250,7 @@ class Host:
         }
 
     def render_kit(self, notes, ccs, start: float, preroll: float, length: float, sample_rate: int,
-                   cc_overrides=None, routes=None):
+                   cc_overrides=None, routes=None, variations="cycle"):
         """Render hits with the main kit. A hit can name a route (its 4th item): which kit
         plays it, which key, whether that kit's note map applies, and a level."""
         import numpy as np
@@ -330,18 +330,19 @@ class Host:
             seed = (int(round(start * 1000)) + zlib.crc32(path.encode("utf-8"))) & 0x7FFFFFFF
             # The kit's own starting controls (like hi-hat openness), then the mixer's settings.
             controls = {**(opts.get("cc") or {}), **((cc_overrides or {}) if path == self.main else {})}
-            audio = kit.render(events, preroll + length, sr, controls or None, seed=seed)
+            audio = kit.render(events, preroll + length, sr, controls or None, seed=seed, variations=variations)
             audio *= self._kit_gain(entry, sr)
             part = audio[:, skip: skip + frames]
             out[:, :part.shape[1]] += part
         return np.ascontiguousarray(out, dtype=np.float32)
 
     # -- rendering ----------------------------------------------------------
-    def render(self, notes, ccs, start: float, preroll: float, length: float, sample_rate: int, cc_overrides=None, routes=None):
+    def render(self, notes, ccs, start: float, preroll: float, length: float, sample_rate: int, cc_overrides=None, routes=None,
+               variations="cycle"):
         import numpy as np
 
         if self.mode == "sfz":
-            return self.render_kit(notes, ccs, start, preroll, length, sample_rate, cc_overrides, routes)
+            return self.render_kit(notes, ccs, start, preroll, length, sample_rate, cc_overrides, routes, variations)
         self._need_plugin()
         if int(sample_rate) != self.sample_rate:
             state = self.get_state()
@@ -421,6 +422,7 @@ def worker_main(conn) -> None:
                     int(msg["sampleRate"]),
                     msg.get("cc"),
                     msg.get("routes"),
+                    msg.get("variations") or "cycle",
                 )
                 reply = {
                     "ok": True,

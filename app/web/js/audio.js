@@ -193,7 +193,7 @@ class PluginSegments {
   hash(idx) {
     const p = this.store.project;
     const { t0, t1 } = this.window(idx);
-    let s = `${this.version}|${this.a.ctx.sampleRate}|${p.sound.type}|${p.sound.type === 'sfz' ? p.sound.sfz?.path : ''}|${JSON.stringify(this.a.engineCC() || {})}|${p.sound.convertGM ? 1 : 0}|${p.drumMap}|${p.mutes.join(',')}|${this.a.routeSignature()}|`;
+    let s = `${this.version}|${this.a.variations}|${this.a.ctx.sampleRate}|${p.sound.type}|${p.sound.type === 'sfz' ? p.sound.sfz?.path : ''}|${JSON.stringify(this.a.engineCC() || {})}|${p.sound.convertGM ? 1 : 0}|${p.drumMap}|${p.mutes.join(',')}|${this.a.routeSignature()}|`;
     const notes = this.store.notes;
     let count = 0;
     for (let i = lowerBound(notes, t0); i < notes.length && notes[i].t < t1; i++) {
@@ -217,7 +217,7 @@ class PluginSegments {
     const ccs = [];
     const cl = this.store.ccs;
     for (let i = Math.max(0, lowerBound(cl, t0) - 1); i < cl.length && cl[i].t < t1; i++) ccs.push([cl[i].t, cl[i].c, cl[i].v]);
-    return { notes, routes, ccs, start, preroll: start - t0, length: SEG + XF, sampleRate: this.a.ctx.sampleRate, cc: this.a.engineCC() };
+    return { notes, routes, ccs, start, preroll: start - t0, length: SEG + XF, sampleRate: this.a.ctx.sampleRate, cc: this.a.engineCC(), variations: this.a.variations };
   }
 
   isReady(idx) {
@@ -771,7 +771,7 @@ export class AudioEngine extends Emitter {
         : this.engineHits([{ t: 0.0, n: note, v: vel }]);
       const res = await api.render({
         notes: hit.notes, routes: hit.routes, ccs: [], start: 0, preroll: 0, length: 2.2,
-        sampleRate: this.ctx.sampleRate, cc: this.engineCC(),
+        sampleRate: this.ctx.sampleRate, cc: this.engineCC(), variations: this.variations,
       });
       if (token === this._auditionToken || !this._auditionNext) {
         const buf = this.ctx.createBuffer(2, res.frames, res.sampleRate || this.ctx.sampleRate);

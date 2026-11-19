@@ -1162,6 +1162,7 @@ class Handler(BaseHTTPRequestHandler):
                 "sampleRate": int(data.get("sampleRate") or 48000),
                 "cc": data.get("cc") or None,
                 "routes": data.get("routes") or None,
+                "variations": "random" if data.get("variations") == "random" else "cycle",
             }, timeout=600)
             self._send(200, reply["pcm"], "application/octet-stream", {
                 "X-Frames": str(reply["frames"]),

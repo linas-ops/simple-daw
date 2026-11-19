@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
   welcomed: false,
   lastProject: null,
   myKits: [], // kits you put together: a main sample kit plus drums borrowed from others
+  variations: 'random', // sample kits: 'random' or 'cycle' (each drum's recordings take turns)
 };
 
 class App {
@@ -116,6 +117,7 @@ class App {
   applySettings() {
     const s = this.settings;
     this.audio.clickOn = !!s.click;
+    this.audio.variations = s.variations === 'cycle' ? 'cycle' : 'random';
     this.timeline.snap = !!s.snap;
     this.timeline.grid = GRIDS[s.grid] ? s.grid : '16';
     $('#grid').value = this.timeline.grid;
@@ -2182,6 +2184,7 @@ class App {
         length: end - start,
         sampleRate: this.audio.ctx.sampleRate,
         cc: this.audio.engineCC(),
+        variations: this.audio.variations,
       });
       onProgress?.(0.45);
     } else if (!this.audio.sampler.kit) {
@@ -2225,6 +2228,16 @@ class App {
     lat.addEventListener('input', () => { latVal.textContent = `${lat.value > 0 ? '+' : ''}${lat.value} ms`; });
     lat.addEventListener('change', () => this.saveSetting({ latencyMs: Number(lat.value) }));
 
+    const variationList = el('div', { class: 'radio-list' });
+    for (const [value, label, sub] of [
+      ['random', 'Random', 'Each hit picks one of the drum’s recordings at random, never the same one three times in a row.'],
+      ['cycle', 'In turn', 'The recordings take turns: 1, 2, 1, 2… Steadier, like most sample players.'],
+    ]) {
+      const input = el('input', { type: 'radio', name: 'variations', value, checked: (s.variations === 'cycle' ? 'cycle' : 'random') === value });
+      input.addEventListener('change', () => { this.saveSetting({ variations: value }); toast(`Variations: ${label.toLowerCase()}. You’ll hear it on the next playback.`); });
+      variationList.append(el('label', { class: 'check' }, input, el('span', {}, label, el('span', { class: 'mi-sub' }, sub))));
+    }
+
     const monitor = el('input', { type: 'checkbox', checked: s.monitor });
     monitor.addEventListener('change', () => this.saveSetting({ monitor: monitor.checked }));
 
@@ -2253,6 +2266,9 @@ class App {
             el('div', { class: 'form-inline' }, lat, latVal),
             el('span', { class: 'help' }, 'If your recorded hits always land a little late compared to the click, move this to the left. Late by about 20 ms? Set −20.')),
           el('label', { class: 'check' }, monitor, el('span', {}, 'Play the built-in kit while I record', el('span', { class: 'mi-sub' }, 'Usually not needed: your module already plays its own sound. It can feel slightly late.'))),
+          el('h3', {}, 'Sound variations'),
+          el('p', { class: 'note', style: { margin: '2px 8px 4px' } }, 'Sample kits have several recordings of each drum. How a drum picks one for each hit:'),
+          variationList,
           el('h3', {}, 'Where things are saved'),
           el('p', { class: 'note' }, `Songs: ${this.folders?.projects || 'Projects folder'}`),
           el('p', { class: 'note' }, `Exports: ${this.folders?.exports || 'Exports folder'}`))),

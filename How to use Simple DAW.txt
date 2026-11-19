@@ -25,6 +25,8 @@ Realistic kits (recommended)
 - More free kits: Sound > Get more kits... downloads them for you.
 - Other SFZ kits: unzip them into the Kits folder.
 - Mix > Kit mixer sets the level of each mic and drum.
+- Settings > Sound variations: Random (default) or In turn (1, 2, 1, 2...)
+  for how each drum picks among its recordings.
 - Sample kits are heard on playback, not while you record.
 
 Percussion

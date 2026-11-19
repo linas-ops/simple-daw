@@ -672,10 +672,13 @@ class SfzKit:
         return gain * min(1.0, 1.0 - pan), gain * min(1.0, 1.0 + pan)
 
     def render(self, events, duration: float, sr: int, cc_overrides: dict | None = None, seed: int | None = None,
-               vary: bool = True):
+               vary: bool = True, variations: str = "cycle"):
         """events: sorted list of (seconds, 'note', note, vel[, gain]) or (seconds, 'cc', number, value127).
 
         vary=False turns off pitch_random/amp_random (used when measuring the kit's level).
+        variations="random" picks round robins (seq_length) at random instead of in turn,
+        never the same one three times in a row. Sequences that already pick at random
+        within each step (lorand/hirand, like a shaker's down-up strokes) stay in order.
         """
         frames = max(1, int(round(duration * sr)))
         out = np.zeros((2, frames), dtype=np.float32)
@@ -685,6 +688,8 @@ class SfzKit:
         sw = self.sw_default
         counters: dict[int, int] = {}
         rng = random.Random(seed)
+        shuffle = variations == "random"
+        seq_history: dict[tuple, list] = {}
         voices: list[dict] = []
         by_offby: dict[int, list] = {}
         by_group_key: dict[tuple, list] = {}
@@ -708,6 +713,19 @@ class SfzKit:
             if self.sw_range and self.sw_range[0] <= note <= self.sw_range[1]:
                 sw = note
             rnd = rng.random()
+            seq_pick: dict[int, int] = {}
+
+            def pick(length: int) -> int:
+                if length not in seq_pick:
+                    hist = seq_history.setdefault((note, length), [])
+                    choice = rng.randrange(length)
+                    if len(hist) >= 2 and hist[-1] == hist[-2] == choice:
+                        choice = (choice + 1 + rng.randrange(length - 1)) % length
+                    hist.append(choice)
+                    del hist[:-2]
+                    seq_pick[length] = choice
+                return seq_pick[length]
+
             triggered = []
             for r in self.by_key.get(note, ()):
                 if not (r.lovel <= vel <= r.hivel):
@@ -724,8 +742,11 @@ class SfzKit:
                     continue
                 count = counters.get(r.id, 0)
                 counters[r.id] = count + 1
-                if r.seq_length > 1 and (count % r.seq_length) != r.seq_position - 1:
-                    continue
+                if r.seq_length > 1:
+                    in_order = not shuffle or r.lorand > 0.0 or r.hirand < 1.0
+                    step = (count % r.seq_length) if in_order else pick(r.seq_length)
+                    if step != r.seq_position - 1:
+                        continue
                 if not (r.lorand <= rnd < r.hirand or (r.hirand >= 1.0 and rnd >= r.lorand)):
                     continue
                 triggered.append(r)
