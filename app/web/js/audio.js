@@ -456,7 +456,7 @@ export class AudioEngine extends Emitter {
   routeSignature() {
     const p = this.store.project;
     if (p.sound.type !== 'sfz') return '';
-    return `${this.routeVersion || 0}|${JSON.stringify(p.sound.lanes || {})}|${JSON.stringify(p.mix.lanes || {})}`;
+    return `${this.routeVersion || 0}|${JSON.stringify(p.sound.lanes || {})}|${JSON.stringify(p.sound.takes || {})}|${JSON.stringify(p.mix.lanes || {})}`;
   }
 
   // Hits -> what the engine renders: [[t, note, vel, route?]] plus the route list.

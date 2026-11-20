@@ -621,6 +621,54 @@ class SfzKit:
         for _ in range(threads):
             threading.Thread(target=work, daemon=True).start()
 
+    @staticmethod
+    def _fits(r, sw, cc) -> bool:
+        """Whether a region answers to the current keyswitch and controller values."""
+        if r.sw_last is not None and r.sw_last != sw:
+            return False
+        for num, lo, hi in r.cc_ranges:
+            val = cc.get(num, 0.0) * 127.0
+            if val < lo - 1e-6 or val > hi + 1e-6:
+                return False
+        return True
+
+    @staticmethod
+    def _take_layout(candidates) -> tuple[int, list]:
+        """How a sound's recordings are told apart: round-robin steps x random slots."""
+        steps = max((r.seq_length for r in candidates), default=1)
+        slots = sorted({round(r.lorand, 6) for r in candidates if r.lorand > 0.0 or r.hirand < 1.0})
+        return steps, slots
+
+    def _one_take(self, candidates, take: int) -> list:
+        """The regions that make up recording number `take` (0-based) of a hit.
+
+        Round-robin steps count first, then random slots, so every combination is
+        reachable. A velocity layer with fewer recordings wraps around."""
+        steps, slots = self._take_layout(candidates)
+        slot = slots[(take // max(1, steps)) % len(slots)] if slots else None
+        out = []
+        for r in candidates:
+            if r.seq_length > 1 and (take % r.seq_length) != r.seq_position - 1:
+                continue
+            if slot is not None and (r.lorand > 0.0 or r.hirand < 1.0) and round(r.lorand, 6) != slot:
+                continue
+            out.append(r)
+        return out
+
+    def take_count(self, key: int, cc_overrides: dict | None = None) -> int:
+        """How many recordings (variations) a key has, at the velocity where it has the most."""
+        cc = dict(self.cc_defaults)
+        for k, v in (cc_overrides or {}).items():
+            cc[int(k)] = min(1.0, max(0.0, float(v)))
+        regions = [r for r in self.by_key.get(int(key) + self.note_offset, ()) if not r.silent]
+        best = 0
+        for vel in list(range(8, 128, 8)) + [127]:
+            cands = [r for r in regions if r.lovel <= vel <= r.hivel and self._fits(r, self.sw_default, cc)]
+            if cands:
+                steps, slots = self._take_layout(cands)
+                best = max(best, steps * max(1, len(slots)))
+        return best
+
     def calibrate(self, sr: int, target: float = 0.6, refs=None) -> float:
         """Pick an output gain so a hard hit of the reference sounds peaks around `target`.
 
@@ -673,7 +721,10 @@ class SfzKit:
 
     def render(self, events, duration: float, sr: int, cc_overrides: dict | None = None, seed: int | None = None,
                vary: bool = True, variations: str = "cycle"):
-        """events: sorted list of (seconds, 'note', note, vel[, gain]) or (seconds, 'cc', number, value127).
+        """events: sorted list of (seconds, 'note', note, vel[, gain[, take]]) or (seconds, 'cc', number, value127).
+
+        take (0-based) makes the hit always play that one recording of the sound
+        (see take_count), with no random tuning or level.
 
         vary=False turns off pitch_random/amp_random (used when measuring the kit's level).
         variations="random" picks round robins (seq_length) at random instead of in turn,
@@ -710,6 +761,8 @@ class SfzKit:
                 continue
             note = int(a) + self.note_offset
             vel = max(1, min(127, int(b)))
+            take = int(ev[5]) if len(ev) > 5 and ev[5] is not None else -1
+            hit_vary = vary and take < 0
             if self.sw_range and self.sw_range[0] <= note <= self.sw_range[1]:
                 sw = note
             rnd = rng.random()
@@ -726,30 +779,22 @@ class SfzKit:
                     seq_pick[length] = choice
                 return seq_pick[length]
 
-            triggered = []
-            for r in self.by_key.get(note, ()):
-                if not (r.lovel <= vel <= r.hivel):
-                    continue
-                if r.sw_last is not None and r.sw_last != sw:
-                    continue
-                ok = True
-                for num, lo, hi in r.cc_ranges:
-                    val = cc.get(num, 0.0) * 127.0
-                    if val < lo - 1e-6 or val > hi + 1e-6:
-                        ok = False
-                        break
-                if not ok:
-                    continue
-                count = counters.get(r.id, 0)
-                counters[r.id] = count + 1
-                if r.seq_length > 1:
-                    in_order = not shuffle or r.lorand > 0.0 or r.hirand < 1.0
-                    step = (count % r.seq_length) if in_order else pick(r.seq_length)
-                    if step != r.seq_position - 1:
+            candidates = [r for r in self.by_key.get(note, ()) if r.lovel <= vel <= r.hivel and self._fits(r, sw, cc)]
+            if take >= 0:
+                triggered = self._one_take(candidates, take)
+            else:
+                triggered = []
+                for r in candidates:
+                    count = counters.get(r.id, 0)
+                    counters[r.id] = count + 1
+                    if r.seq_length > 1:
+                        in_order = not shuffle or r.lorand > 0.0 or r.hirand < 1.0
+                        step = (count % r.seq_length) if in_order else pick(r.seq_length)
+                        if step != r.seq_position - 1:
+                            continue
+                    if not (r.lorand <= rnd < r.hirand or (r.hirand >= 1.0 and rnd >= r.lorand)):
                         continue
-                if not (r.lorand <= rnd < r.hirand or (r.hirand >= 1.0 and rnd >= r.lorand)):
-                    continue
-                triggered.append(r)
+                    triggered.append(r)
             if not triggered:
                 continue
             for g in {r.group for r in triggered}:
@@ -770,14 +815,14 @@ class SfzKit:
                 gl, gr = self._gains(r, vel, cc)
                 gl *= hit_gain
                 gr *= hit_gain
-                if vary and r.amp_random > 0:
+                if hit_vary and r.amp_random > 0:
                     drop = 10 ** (-rng.random() * r.amp_random / 20.0)
                     gl *= drop
                     gr *= drop
                 if gl <= 1e-6 and gr <= 1e-6:
                     continue
                 rate = self._rate(r, note)
-                if vary and r.pitch_random > 0:
+                if hit_vary and r.pitch_random > 0:
                     # Three fixed detunings keep the number of cached copies small.
                     step = rng.choice((-1, 0, 1))
                     if step:

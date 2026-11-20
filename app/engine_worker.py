@@ -235,6 +235,13 @@ class Host:
             "sampleRate": self.sample_rate,
         }
 
+    def take_count(self, path: str, options: dict | None, note: int, raw: bool) -> dict:
+        """How many recordings a drum has (in the kit that plays it)."""
+        _, entry = self._open_kit(path, options)
+        opts = entry["opts"]
+        key = int(note) if raw else int({int(k): int(v) for k, v in (opts.get("noteMap") or {}).items()}.get(int(note), int(note)))
+        return {"count": entry["kit"].take_count(key, opts.get("cc")), "key": key}
+
     def describe_kit(self, path: str, sample_rate: int, options: dict | None = None, preload=None) -> dict:
         """Open another kit so single drums can borrow its sounds."""
         _, entry = self._open_kit(path, options)
@@ -293,18 +300,21 @@ class Host:
                     idx = -1
                 if 0 <= idx < len(routes) and isinstance(routes[idx], dict):
                     route = routes[idx]
-            path, key, raw, gain = self.main, n, False, 1.0
+            path, key, raw, gain, take = self.main, n, False, 1.0, None
             if route:
                 path = os.path.abspath(route.get("path") or self.main)
                 key = int(route.get("note", n))
                 raw = bool(route.get("raw"))
                 gain = max(0.0, float(route.get("gain", 1.0)))
-            g = groups.setdefault(path, {"cooked": [], "gains": [], "raw": [], "route": route})
+                if route.get("take") is not None:
+                    take = max(0, int(route["take"]))
+            g = groups.setdefault(path, {"cooked": [], "gains": [], "takes": [], "raw": [], "route": route})
             if raw:
-                g["raw"].append((t, key, v, gain))
+                g["raw"].append((t, key, v, gain, take))
             else:
                 g["cooked"].append([t, key, v])
                 g["gains"].append(gain)
+                g["takes"].append(take)
         skip = int(round(preroll * sr))
         for path, g in groups.items():
             try:
@@ -320,10 +330,10 @@ class Host:
             events = list(cc_events)
             if g["cooked"]:
                 mapped = sfz.apply_kit_rules(g["cooked"], valid_ccs, opts.get("noteMap"), opts.get("hihat"))
-                for (t, n, v), gain in zip(mapped, g["gains"]):
-                    events.append((max(0.0, t - t0), "note", int(n), int(v), gain))
-            for t, n, v, gain in g["raw"]:
-                events.append((max(0.0, t - t0), "note", int(n), int(v), gain))
+                for (t, n, v), gain, take in zip(mapped, g["gains"], g["takes"]):
+                    events.append((max(0.0, t - t0), "note", int(n), int(v), gain, take))
+            for t, n, v, gain, take in g["raw"]:
+                events.append((max(0.0, t - t0), "note", int(n), int(v), gain, take))
             if not any(e[1] == "note" for e in events):
                 continue
             events.sort(key=lambda e: (e[0], 0 if e[1] == "cc" else 1))
@@ -398,6 +408,9 @@ def worker_main(conn) -> None:
                 reply = {"ok": True, **info}
             elif cmd == "load_kit":
                 info = host.load_kit(msg["path"], msg["sampleRate"], msg.get("options"))
+                reply = {"ok": True, **info}
+            elif cmd == "takes":
+                info = host.take_count(msg["path"], msg.get("options"), int(msg["note"]), bool(msg.get("raw")))
                 reply = {"ok": True, **info}
             elif cmd == "describe_kit":
                 info = host.describe_kit(msg["path"], msg.get("sampleRate") or 48000, msg.get("options"), msg.get("preload"))

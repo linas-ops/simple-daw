@@ -45,8 +45,18 @@ Each drum: right-click its name (or click its ... button)
   Ctrl+Z undoes any of these. Select hits first to move only those.
 - Choose another sound: give this drum a sound from any kit you have,
   like a tom from another kit or a bongo from Percussion.
+- Variation: sample kits record each drum several times. "Any" uses
+  them all; a number makes this drum always play that one recording.
+  The drum name then shows v and the number (e.g. v4).
 - Volume: make this drum louder or softer (also in Mix).
-- Sound > Save as my kit... keeps your mix of kits for other songs.
+
+My kits (save your kit setup)
+- Sound > Save kit setup... saves the kit with its borrowed sounds,
+  chosen variations, drum volumes and kit mixer (or built-in kit
+  balance). Pick it in any song from Sound > My kits.
+- Saving again with the same name updates it.
+- The Sound button shows "My kit, changed" when this song's kit
+  differs from the saved one. Hits and mutes stay with each song.
 - Lanes menu (top left) > Show percussion lanes to see them all.
 
 Plugins

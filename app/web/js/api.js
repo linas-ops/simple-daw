@@ -58,6 +58,8 @@ export const api = {
   loadKit: (path, sampleRate, options) => post('/api/engine/load-kit', { path, sampleRate, options }),
   // Open another kit so a single drum can borrow one of its sounds.
   describeKit: (path, sampleRate, options, preload) => post('/api/engine/describe-kit', { path, sampleRate, options, preload }),
+  // How many recordings (variations) a drum's sound has.
+  takes: (path, options, note, raw) => post('/api/engine/takes', { path, options, note, raw }),
   kits: () => get('/api/kits'),
   kitsStatus: () => get('/api/kits/status'),
   installKit: (id) => post('/api/kits/install', { id }),

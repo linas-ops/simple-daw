@@ -37,7 +37,8 @@ export function newProject() {
     mutes: [],
     loop: { on: false, start: 0, end: 0 },
     // lanes: sounds a single drum borrows from another kit, { [note]: { path, kit, name, note, raw, ... } }
-    sound: { type: 'kit', kit: 'black-pearl', plugin: null, convertGM: true, lanes: {} },
+    // takes: a single variation a drum always plays, { [note]: { n, path, note, raw } }
+    sound: { type: 'kit', kit: 'black-pearl', plugin: null, convertGM: true, lanes: {}, takes: {} },
     mix: structuredClone(DEFAULT_MIX),
     created: Date.now(),
   };
@@ -223,6 +224,7 @@ export class Store extends Emitter {
     if (!p.takes.some((t) => t.id === p.activeTake)) p.activeTake = p.takes[0].id;
     p.sound = { ...base.sound, ...(data.sound || {}) };
     if (!p.sound.lanes || typeof p.sound.lanes !== 'object') p.sound.lanes = {};
+    if (!p.sound.takes || typeof p.sound.takes !== 'object') p.sound.takes = {};
     p.mix = {
       ...base.mix,
       ...(data.mix || {}),

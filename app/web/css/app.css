@@ -482,6 +482,18 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { outline: 2px solid var
 .sound-picker select { width: 100%; }
 .sound-groups { min-height: 120px; }
 .lane-menu .slider-row { grid-template-columns: 70px 1fr 48px; }
+
+/* Variation: Any 1 2 3 ... (which recording of the sound a drum plays) */
+.take-row { display: grid; grid-template-columns: 70px 1fr; align-items: start; gap: 8px; padding: 6px 8px 4px; }
+.take-row > label { font: 600 13px var(--font-ui); color: var(--head-dim); padding-top: 6px; }
+.take-chips { display: flex; flex-wrap: wrap; gap: 4px; min-height: 28px; align-items: center; }
+.take-chip {
+  min-width: 28px; height: 28px; padding: 0 7px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--ink-3);
+  color: var(--head); font: 600 13px var(--font-cond); cursor: pointer;
+}
+.take-chip:hover, .take-chip:focus-visible { background: var(--ink-4); }
+.take-chip.is-active { background: rgba(217, 166, 90, .18); border-color: rgba(217, 166, 90, .7); color: var(--brass); }
 .badge { font: 600 11px/1 var(--font-cond); padding: 3px 5px; border-radius: 4px; background: var(--ink-4); color: var(--head-dim); }
 .badge.is-warn { background: rgba(240, 74, 62, .18); color: #ffb4ad; }
 

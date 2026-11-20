@@ -133,7 +133,7 @@ export class Timeline extends Emitter {
 
   rebuildLanes(force = false) {
     const lanes = this.computeLanes();
-    const names = lanes.map((n) => { const d = this.laneDisplay(n); return `${d.label}/${d.source || ''}/${d.silent ? 1 : 0}`; }).join(',');
+    const names = lanes.map((n) => { const d = this.laneDisplay(n); return `${d.label}/${d.source || ''}/${d.silent ? 1 : 0}/${d.take || 0}`; }).join(',');
     const key = `${this.p.drumMap}|${lanes.join(',')}|${this.p.mutes.join(',')}|${names}`;
     if (!force && key === this.lastLaneKey) return;
     this.lastLaneKey = key;
@@ -178,7 +178,8 @@ export class Timeline extends Emitter {
       el('span', { class: 'flash' }),
       el('span', { class: 'lane-led' }),
       el('span', { class: 'lane-name' }, label),
-      disp.source ? el('span', { class: 'lane-src' }, disp.source) : el('span', { class: 'lane-note' }, String(note)),
+      disp.source ? el('span', { class: 'lane-src' }, disp.take ? `${disp.source} v${disp.take}` : disp.source)
+        : disp.take ? el('span', { class: 'lane-src' }, `v${disp.take}`) : el('span', { class: 'lane-note' }, String(note)),
       more,
       mute);
       head.addEventListener('contextmenu', (e) => {

@@ -200,9 +200,9 @@ class App {
     this.updateSoundButton();
   }
 
-  async chooseKit(kitId) {
+  async chooseKit(kitId, myKit = null) {
     const p = this.store.project;
-    p.sound = { ...p.sound, type: 'kit', kit: kitId };
+    p.sound = { ...p.sound, type: 'kit', kit: kitId, myKit };
     this.audio.segments.enabled = false;
     this.store.touch('sound');
     await this.loadKit(kitId);
@@ -217,7 +217,7 @@ class App {
       return;
     }
     const p = this.store.project;
-    p.sound = { ...p.sound, type: 'module' };
+    p.sound = { ...p.sound, type: 'module', myKit: null };
     this.audio.segments.enabled = false;
     this.audio.moduleOut = out;
     this.store.touch('sound');
@@ -228,7 +228,7 @@ class App {
     this.audio.stop();
     const p = this.store.project;
     const keepState = p.sound.plugin && p.sound.plugin.path === pl.path ? p.sound.plugin.state : null;
-    p.sound = { ...p.sound, type: 'plugin', plugin: { path: pl.path, name: pl.name, format: pl.format, state: keepState } };
+    p.sound = { ...p.sound, type: 'plugin', plugin: { path: pl.path, name: pl.name, format: pl.format, state: keepState }, myKit: null };
     this.store.touch('sound');
     const ok = await this.loadPlugin(p.sound.plugin);
     if (ok) {
@@ -259,7 +259,13 @@ class App {
         cc: prev && prev.path === program.path ? prev.cc || {} : {},
       },
       lanes: p.sound.lanes || {},
+      takes: { ...(p.sound.takes || {}) },
+      myKit: null,
     };
+    // A chosen variation of the old main kit means nothing in the new one.
+    if (prev && prev.path !== program.path) {
+      for (const [lane, t] of Object.entries(p.sound.takes)) if (t?.path === prev.path) delete p.sound.takes[lane];
+    }
     this.mainKeys = null;
     this.store.touch('sound');
     const ok = await this.loadSfz(p.sound.sfz);
@@ -479,8 +485,9 @@ class App {
       else if (this.pluginStatus !== 'ready') led.classList.add('is-off');
     } else if (s.type === 'sfz' && s.sfz) {
       const borrowed = Object.keys(s.lanes || {}).length;
-      kind = borrowed ? 'Sample kit, mixed' : 'Sample kit';
-      name = borrowed ? `${s.sfz.name} + ${borrowed}` : s.sfz.name;
+      const mine = this.activeMyKit();
+      kind = mine ? (mine.changed ? 'My kit, changed' : 'My kit') : borrowed ? 'Sample kit, mixed' : 'Sample kit';
+      name = mine ? mine.mk.name : borrowed ? `${s.sfz.name} + ${borrowed}` : s.sfz.name;
       if (this.pluginStatus === 'loading') led.classList.add('is-busy');
       else if (this.pluginStatus !== 'ready') led.classList.add('is-off');
     } else if (s.type === 'module') {
@@ -488,9 +495,10 @@ class App {
       name = 'Your drum module';
       if (!this.midi.output) led.classList.add('is-off');
     } else {
-      kind = 'Built-in kit';
+      const mine = this.activeMyKit();
+      kind = mine ? (mine.changed ? 'My kit, changed' : 'My kit') : 'Built-in kit';
       const defs = this.audio.sampler.defs;
-      name = defs?.kits?.[s.kit]?.name || (s.kit === 'red-zeppelin' ? 'Red Zeppelin' : 'Black Pearl');
+      name = mine ? mine.mk.name : defs?.kits?.[s.kit]?.name || (s.kit === 'red-zeppelin' ? 'Red Zeppelin' : 'Black Pearl');
       if (this.kitProgress !== null) led.classList.add('is-busy');
     }
     $('#sound-kind').textContent = kind;
@@ -540,8 +548,8 @@ class App {
       const getKits = el('button', { class: 'btn btn-small' }, icon('drum'), 'Get more kits…');
       getKits.addEventListener('click', () => { close(); this.showKitStore(); });
       const kitActions = el('div', { class: 'pop-actions', style: { justifyContent: 'flex-start', marginTop: '2px', flexWrap: 'wrap' } }, getKits);
-      if (s.type === 'sfz' && s.sfz && Object.keys(s.lanes || {}).length) {
-        const save = el('button', { class: 'btn btn-small' }, icon('star'), 'Save as my kit…');
+      if ((s.type === 'sfz' && s.sfz) || s.type === 'kit') {
+        const save = el('button', { class: 'btn btn-small' }, icon('star'), 'Save kit setup…');
         save.addEventListener('click', () => { close(); this.saveMyKit(); });
         kitActions.append(save);
       }
@@ -549,12 +557,18 @@ class App {
       const mine = this.settings.myKits || [];
       if (mine.length) {
         wrap.append(el('div', { class: 'section-title' }, 'My kits'));
+        const active = this.activeMyKit();
         for (const mk of mine) {
           const row = el('div', { class: 'form-inline', style: { gap: '4px' } });
           const borrowed = Object.keys(mk.lanes || {}).length;
+          const takes = Object.keys(mk.takes || {}).length;
+          const base = (mk.type || 'sfz') === 'kit' ? (this.audio.sampler.defs?.kits?.[mk.kit]?.name || 'Built-in kit') : (mk.sfz?.name || 'Sample kit');
+          const extras = [borrowed && `${borrowed} borrowed`, takes && `${takes} variation${takes === 1 ? '' : 's'} chosen`].filter(Boolean).join(', ');
+          const isActive = active && active.mk.id === mk.id;
           const pick = menuItem({
             label: mk.name,
-            sub: `${mk.sfz?.name || 'Sample kit'}${borrowed ? ` with ${borrowed} borrowed sound${borrowed === 1 ? '' : 's'}` : ''}`,
+            sub: `${base}${extras ? `, ${extras}` : ''}${isActive && active.changed ? '. Changed in this song' : ''}`,
+            active: !!isActive,
             onClick: () => { close(); this.applyMyKit(mk); },
           });
           const del = el('button', { class: 'lane-btn', style: { opacity: 1 }, 'aria-label': `Remove ${mk.name}`, 'data-tip': 'Remove from My kits' }, icon('trash'));
@@ -715,29 +729,72 @@ class App {
     return typeof v === 'number' ? v : 1;
   }
 
-  // What the engine should do with hits on this lane (see AudioEngine.engineHits).
-  routeFor(laneNote) {
-    const p = this.store.project;
-    const s = p.sound;
+  // Which kit and key play a lane right now (sample kits only), or null.
+  laneSource(laneNote) {
+    const s = this.store.project.sound;
     if (s.type !== 'sfz' || !s.sfz) return null;
-    const gain = this.laneVolume(laneNote);
     const e = this.audio.engineNote(laneNote);
     const ov = s.lanes?.[laneNote];
     if (ov && ov.path) {
-      return { path: ov.path, note: ov.note ?? e, raw: !!ov.raw, gain, noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null, cc: ov.cc || {} };
+      return { path: ov.path, note: ov.note ?? e, raw: !!ov.raw, opts: { noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null, cc: ov.cc || {} } };
     }
-    if (this.mainPlays(e)) return gain !== 1 ? { path: s.sfz.path, note: e, raw: false, gain } : null;
+    if (this.mainPlays(e)) {
+      return { path: s.sfz.path, note: e, raw: false, main: true, opts: { noteMap: s.sfz.noteMap || {}, hihat: s.sfz.hihat || null, calibrate: s.sfz.calibrate || null, cc: s.sfz.ccDefaults || {} } };
+    }
     const perc = this.percussionFor(e);
-    if (perc) return { path: perc.program.path, note: e, raw: true, gain, calibrate: perc.kit.calibrate || null };
-    return { silent: true };
+    if (perc) return { path: perc.program.path, note: e, raw: true, opts: { calibrate: perc.kit.calibrate || null } };
+    return null;
+  }
+
+  // The one variation (1-based) a lane always plays, if you picked one for its current sound.
+  laneTake(laneNote, src = this.laneSource(laneNote)) {
+    const t = this.store.project.sound.takes?.[laneNote];
+    if (!t || !src || t.path !== src.path || Number(t.note) !== Number(src.note) || !!t.raw !== !!src.raw) return null;
+    return t.n;
+  }
+
+  // What the engine should do with hits on this lane (see AudioEngine.engineHits).
+  routeFor(laneNote) {
+    const s = this.store.project.sound;
+    if (s.type !== 'sfz' || !s.sfz) return null;
+    const src = this.laneSource(laneNote);
+    if (!src) return { silent: true };
+    const gain = this.laneVolume(laneNote);
+    const take = this.laneTake(laneNote, src);
+    if (src.main && gain === 1 && !take) return null;
+    const route = { path: src.path, note: src.note, raw: src.raw, gain, ...(src.main ? {} : src.opts) };
+    if (take) route.take = take - 1;
+    return route;
+  }
+
+  setLaneTake(note, n) {
+    const s = this.store.project.sound;
+    s.takes = s.takes || {};
+    const src = this.laneSource(note);
+    if (!n || !src) delete s.takes[note];
+    else s.takes[note] = { n, path: src.path, note: src.note, raw: !!src.raw };
+    this.audio.routeVersion = (this.audio.routeVersion || 0) + 1;
+    this.store.touch('sound');
+    this.timeline.rebuildLanes(true);
+    this.updateSoundButton();
   }
 
   // Name, source and status of a lane, for the lane heads and menus.
   laneDisplay(laneNote) {
+    const out = this.laneDisplayBase(laneNote);
+    const take = this.laneTake(laneNote);
+    if (take) {
+      out.take = take;
+      out.tip = `${out.label} always plays variation ${take} of ${out.sound || out.label}. Right-click to change it.`;
+    }
+    return out;
+  }
+
+  laneDisplayBase(laneNote) {
     const p = this.store.project;
     const s = p.sound;
     const info = laneInfo(p.drumMap, laneNote);
-    const out = { label: info.label, source: null, silent: false, tip: null, sound: null, from: null };
+    const out = { label: info.label, source: null, silent: false, tip: null, sound: null, from: null, take: null };
     if (s.type !== 'sfz' || !s.sfz) return out;
     const e = this.audio.engineNote(laneNote);
     const ov = s.lanes?.[laneNote];
@@ -806,7 +863,8 @@ class App {
     const disp = this.laneDisplay(note);
     const all = this.store.notes.filter((n) => n.n === note);
     const picked = all.filter((n) => tl.selection.has(n.id));
-    popover(anchor, (close) => {
+    let pop = null;
+    pop = popover(anchor, (close) => {
       const wrap = el('div', { class: 'lane-menu' });
       const item = (o) => wrap.append(menuItem({ ...o, onClick: () => { close(); o.onClick(); } }));
       wrap.append(el('h3', {}, disp.label));
@@ -821,6 +879,8 @@ class App {
         if (s.lanes?.[note]) {
           item({ label: 'Use the kit’s own sound', iconName: 'refresh', onClick: () => this.setLaneSound(note, null) });
         }
+        const src = this.laneSource(note);
+        if (src) wrap.append(this.variationRow(note, src, () => pop?.reposition()));
       } else {
         wrap.append(el('p', { class: 'note' }, 'To give this drum a sound from another kit, pick a sample kit in Sound first.'));
       }
@@ -830,6 +890,7 @@ class App {
         vol.addEventListener('input', () => { val.textContent = `${vol.value}%`; });
         vol.addEventListener('change', () => { this.setLaneVolume(note, Number(vol.value) / 100); this.audio.audition(note, 105); });
         wrap.append(el('div', { class: 'slider-row' }, el('label', {}, 'Volume'), vol, val));
+        item({ label: 'Save kit setup…', sub: 'Keeps this kit with its sounds, variations and volumes, for other songs', iconName: 'star', onClick: () => this.saveMyKit() });
       }
 
       wrap.append(el('div', { class: 'section-title' }, 'Hits'));
@@ -851,6 +912,43 @@ class App {
       });
       return wrap;
     }, { width: 320 });
+  }
+
+  // "Variation: Any 1 2 3 …" for a lane's sound. Click a number to hear it and
+  // make the drum always play that recording; Any goes back to mixing them.
+  variationRow(note, src, onReady) {
+    const chips = el('div', { class: 'take-chips' }, el('span', { class: 'mi-sub' }, 'Counting recordings…'));
+    const row = el('div', { class: 'take-row' }, el('label', {}, 'Variation'), chips);
+    api.takes(src.path, src.opts, src.note, src.raw).then((r) => {
+      const count = Math.min(24, r.count || 0);
+      chips.replaceChildren();
+      if (count < 2) {
+        chips.append(el('span', { class: 'mi-sub' }, count === 1 ? 'This sound has one recording.' : 'No recordings found.'));
+        onReady?.();
+        return;
+      }
+      const current = this.laneTake(note) || 0;
+      const mixing = this.settings.variations === 'cycle' ? 'take turns' : 'are mixed at random';
+      const buttons = [];
+      const make = (n) => {
+        const b = el('button', {
+          class: `take-chip${n === current ? ' is-active' : ''}`,
+          'aria-pressed': n === current ? 'true' : 'false',
+          'data-tip': n ? `Always play recording ${n} of ${count}` : `All ${count} recordings ${mixing}`,
+        }, n ? String(n) : 'Any');
+        b.addEventListener('click', () => {
+          this.setLaneTake(note, n);
+          for (const x of buttons) { x.classList.toggle('is-active', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }
+          this.audio.audition(note, 105);
+        });
+        buttons.push(b);
+        return b;
+      };
+      chips.append(make(0));
+      for (let n = 1; n <= count; n++) chips.append(make(n));
+      onReady?.();
+    }).catch(() => { chips.replaceChildren(el('span', { class: 'mi-sub' }, 'Couldn’t read this sound’s recordings.')); });
+    return row;
   }
 
   // Every lane hits could go to, grouped like the lanes on screen.
@@ -933,6 +1031,7 @@ class App {
     const isOwn = choice && s.sfz && choice.path === s.sfz.path && !choice.raw && Number(choice.note) === e;
     if (!choice || isOwn) delete s.lanes[note];
     else s.lanes[note] = choice;
+    if (s.takes) delete s.takes[note]; // a new sound has its own recordings
     this.audio.routeVersion = (this.audio.routeVersion || 0) + 1;
     this.store.touch('sound');
     this.timeline.rebuildLanes(true);
@@ -1070,24 +1169,77 @@ class App {
   }
 
   // ---- my kits ------------------------------------------------------------------
-  async saveMyKit() {
-    const s = this.store.project.sound;
-    if (s.type !== 'sfz' || !s.sfz) return;
-    const input = el('input', { class: 'text-input', value: `${s.sfz.kit || s.sfz.name} (mine)`, maxlength: 40, autofocus: true });
+  // ---- my kits (saved kit setups) ------------------------------------------------
+  // Everything that makes up the kit: which kit, borrowed sounds, chosen variations,
+  // drum volumes, and the kit's own mixer or balance. Songs keep their own hits and mutes.
+  kitSetup() {
+    const p = this.store.project;
+    const s = p.sound;
+    if (s.type === 'sfz' && s.sfz) {
+      return { type: 'sfz', sfz: structuredClone(s.sfz), lanes: structuredClone(s.lanes || {}), takes: structuredClone(s.takes || {}), levels: structuredClone(p.mix.lanes || {}) };
+    }
+    if (s.type === 'kit') {
+      return { type: 'kit', kit: s.kit || 'black-pearl', balance: structuredClone(p.mix.kit || {}), levels: structuredClone(p.mix.lanes || {}) };
+    }
+    return null;
+  }
+
+  static setupKey(k) {
+    if (!k) return '';
+    const sfz = k.sfz ? { path: k.sfz.path, cc: k.sfz.cc || {} } : null;
+    return JSON.stringify([k.type || 'sfz', sfz, k.kit || null, k.lanes || {}, k.takes || {}, k.levels || {}, k.balance || {}]);
+  }
+
+  // The saved kit this song uses, and whether it has been changed since.
+  activeMyKit() {
+    const id = this.store.project.sound.myKit;
+    const mk = id && (this.settings.myKits || []).find((k) => k.id === id);
+    if (!mk) return null;
+    return { mk, changed: App.setupKey(this.kitSetup()) !== App.setupKey(mk) };
+  }
+
+  saveMyKit() {
+    const setup = this.kitSetup();
+    if (!setup) {
+      toast('Pick a sample kit or a built-in kit in Sound first. Plugins keep their own settings in the song.', { error: true });
+      return;
+    }
+    const active = this.activeMyKit();
+    const kitName = setup.type === 'sfz' ? setup.sfz.name : (this.audio.sampler.defs?.kits?.[setup.kit]?.name || 'Built-in kit');
+    const input = el('input', { class: 'text-input', value: active ? active.mk.name : `${setup.type === 'sfz' ? (setup.sfz.kit || setup.sfz.name) : kitName} (mine)`, maxlength: 40, autofocus: true });
+    const parts = [];
+    if (setup.type === 'sfz' && Object.keys(setup.lanes).length) parts.push(`${Object.keys(setup.lanes).length} borrowed sound${Object.keys(setup.lanes).length === 1 ? '' : 's'}`);
+    if (setup.type === 'sfz' && Object.keys(setup.takes).length) parts.push(`${Object.keys(setup.takes).length} chosen variation${Object.keys(setup.takes).length === 1 ? '' : 's'}`);
+    if (Object.keys(setup.levels).length) parts.push(`${Object.keys(setup.levels).length} drum volume${Object.keys(setup.levels).length === 1 ? '' : 's'}`);
+    const mixer = setup.type === 'sfz' ? (Object.keys(setup.sfz.cc || {}).length ? 'its kit mixer' : null) : 'its kit balance';
+    if (mixer) parts.push(mixer);
+    const what = parts.length ? `${kitName} with ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}` : kitName;
+    const replaceNote = el('p', { class: 'note' });
+    const syncNote = () => {
+      const same = (this.settings.myKits || []).some((k) => k.name.toLowerCase() === input.value.trim().toLowerCase());
+      replaceNote.textContent = same ? 'A kit with this name is already in My kits. Saving replaces it.' : '';
+    };
+    input.addEventListener('input', syncNote);
+    syncNote();
     modal({
-      title: 'Save as my kit',
+      title: 'Save kit setup',
       body: el('div', {},
-        el('p', {}, `Keeps ${s.sfz.name} with the sounds you picked for single drums${Object.keys(this.store.project.mix.lanes || {}).length ? ' and your drum volumes' : ''}, so you can use it in other songs.`),
-        el('div', { class: 'form-row' }, el('label', {}, 'Name'), input)),
+        el('p', {}, `Saves ${what}, so you can pick it in any song from Sound › My kits.`),
+        el('div', { class: 'form-row' }, el('label', {}, 'Name'), input),
+        replaceNote),
       actions: [
         { label: 'Cancel', ghost: true },
         {
           label: 'Save kit', primary: true, onClick: () => {
             const name = input.value.trim() || 'My kit';
-            const mk = { id: uid(), name, sfz: structuredClone(s.sfz), lanes: structuredClone(s.lanes || {}), levels: structuredClone(this.store.project.mix.lanes || {}) };
-            const list = [...(this.settings.myKits || []).filter((k) => k.name !== name), mk];
+            const old = (this.settings.myKits || []).find((k) => k.name.toLowerCase() === name.toLowerCase());
+            const mk = { id: old ? old.id : uid(), name, ...this.kitSetup() };
+            const list = [...(this.settings.myKits || []).filter((k) => k !== old), mk];
             this.saveSetting({ myKits: list });
-            toast(`Saved ${name}. It’s in Sound under My kits.`);
+            this.store.project.sound.myKit = mk.id;
+            this.store.touch('sound');
+            this.updateSoundButton();
+            toast(old ? `Updated ${name} in My kits.` : `Saved ${name}. It’s in Sound under My kits.`);
           },
         },
       ],
@@ -1095,25 +1247,39 @@ class App {
   }
 
   async applyMyKit(mk) {
-    await this.refreshKitData();
-    if (!this.programInfo(mk.sfz.path)) {
-      toast(`${mk.name} uses ${mk.sfz.name}, which isn’t installed anymore.`, { error: true });
+    const p = this.store.project;
+    if ((mk.type || 'sfz') === 'kit') {
+      this.audio.stop();
+      p.mix.lanes = structuredClone(mk.levels || {});
+      p.mix.kit = { ...p.mix.kit, ...(mk.balance || {}) };
+      this.store.touch('mix');
+      await this.chooseKit(mk.kit || 'black-pearl', mk.id);
+      toast(`${mk.name} is ready.`);
       return;
     }
-    const p = this.store.project;
+    await this.refreshKitData();
+    if (!this.programInfo(mk.sfz.path)) {
+      toast(`${mk.name} uses ${mk.sfz.name}, which isn’t installed anymore. Get it again in Sound › Get more kits.`, { error: true });
+      return;
+    }
+    const missing = Object.values(mk.lanes || {}).filter((ov) => ov?.path && !this.programInfo(ov.path)).length;
     this.audio.stop();
-    p.sound = { ...p.sound, type: 'sfz', sfz: structuredClone(mk.sfz), lanes: structuredClone(mk.lanes || {}) };
+    p.sound = { ...p.sound, type: 'sfz', sfz: structuredClone(mk.sfz), lanes: structuredClone(mk.lanes || {}), takes: structuredClone(mk.takes || {}), myKit: mk.id };
     p.mix.lanes = structuredClone(mk.levels || {});
     this.mainKeys = null;
     this.store.touch('sound');
     const ok = await this.loadSfz(p.sound.sfz);
-    if (ok) { toast(`${mk.name} is ready.`); this.audio.audition(38, 110); }
+    if (ok) {
+      toast(missing ? `${mk.name} is ready, but ${missing} borrowed sound${missing === 1 ? ' comes' : 's come'} from a kit that isn’t installed.` : `${mk.name} is ready.`, { error: !!missing });
+      this.audio.audition(38, 110);
+    }
   }
 
   deleteMyKit(id) {
     const mk = (this.settings.myKits || []).find((k) => k.id === id);
     this.saveSetting({ myKits: (this.settings.myKits || []).filter((k) => k.id !== id) });
     if (mk) toast(`Removed ${mk.name} from My kits. Songs that use it keep their sound.`);
+    this.updateSoundButton();
   }
 
   async fillPluginList(list, close) {
@@ -1450,6 +1616,7 @@ class App {
     });
     this.store.on('settings', (reason) => {
       if (reason === 'mix') this.audio.applyMix();
+      if (reason === 'mix' || reason === 'sound') this.updateSoundButton();
       this.updateSaveState();
       autosave();
       pump();
@@ -2299,7 +2466,8 @@ class App {
           el('h3', {}, 'Mouse'),
           el('p', { class: 'note' }, 'Double-click a lane to add a hit, double-click a hit to delete it. Drag hits to move them, drag empty space to select several. Scroll to move through the song, Ctrl+scroll to zoom, Shift+scroll to see more drums.'),
           el('h3', {}, 'Drums and their sounds'),
-          el('p', { class: 'note' }, 'Right-click a drum name (or use its ••• button) to move, copy or swap its hits with another drum, change its volume, or give it a sound from any of your kits, like a tom from another kit or a conga from Percussion.'),
+          el('p', { class: 'note' }, 'Right-click a drum name (or use its ••• button) to move, copy or swap its hits with another drum, change its volume, or give it a sound from any of your kits, like a tom from another kit or a conga from Percussion. With a sample kit you can also pick one Variation, so the drum always plays that recording.'),
+          el('p', { class: 'note' }, 'Sound › Save kit setup keeps the kit with its borrowed sounds, chosen variations, drum volumes and kit mixer. Pick it in any song from Sound › My kits.'),
           el('h3', {}, 'Credits'),
           el('p', { class: 'note' }, 'Built-in kits: AVL Drumkits by Glen MacArthur (CC BY-SA 3.0). Sample kits: Naked Drums by Wilkinson Audio, Muldjord Kit and DRS Kit by the DrumGizmo team, SFZ versions by kinwie (CC BY 4.0). Percussion: samples from the Versilian Community Sample Library by Versilian Studios (CC0). Plugin hosting: DawDreamer (GPLv3). Typefaces: Barlow and Saira Stencil (SIL Open Font License).')),
         el('div', {}, el('h3', {}, 'Keyboard shortcuts'), dl)),

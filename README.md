@@ -9,7 +9,9 @@ A small, friendly recording app for electronic drums on Windows. Record your kit
 - **Records your e-drums** over USB MIDI with a count-in and click. Every recording is kept as its own take.
 - **Plays them back with real sampled kits.** Each hit picks from several recordings at the right loudness, so a snare roll sounds like a drummer, not a loop. Free kits download from inside the app: Naked Drums, Muldjord Kit, DRS Kit and Percussion.
 - **Percussion:** cajón, bongos, congas, shaker, tambourine, cowbell, agogô, triangle and more. Pick it as your kit and your pads play it, or put percussion next to your drums.
-- **Mix and match kits:** any drum can borrow a sound from any kit, like a tom from another kit or a conga from Percussion. Save the result as your own kit.
+- **Mix and match kits:** any drum can borrow a sound from any kit, like a tom from another kit or a conga from Percussion.
+- **Pick one variation per drum:** sample kits record each drum several times. Use them all (at random or in turn), or lock a drum to the one recording you like.
+- **Save your kit setup** with its borrowed sounds, chosen variations, drum volumes and kit mixer, and pick it in any song from Sound › My kits.
 - **Move, copy or swap hits between drums**, for example to turn a snare part into a conga part.
 - **Edit like a normal DAW:** draw and delete hits, quantize, humanize, change velocity, loop a part, undo everything, import MIDI and add a backing track.
 - **Exports** WAV and MIDI files.
