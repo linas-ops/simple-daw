@@ -27,9 +27,10 @@ Realistic kits (recommended)
 - Mix > Kit mixer sets the level of each mic and drum.
 - Settings > Sound variations: Random (default) or In turn (1, 2, 1, 2...)
   for how each drum picks among its recordings.
-- Settings > Open hi-hat: Connected (default) lets open hi-hats played
-  in a row ring into each other, like a real hi-hat. Separate cuts
-  each one short when the next is hit.
+- Settings > Blend: when an open hi-hat or a crash is hit again while
+  it still rings, the ring carries on under the new hit and the new hit
+  starts softer, so fast hits sound like one wash. One slider for the
+  open hi-hat, one for crashes (0% = every hit starts fresh).
 - Sample kits are heard on playback, not while you record.
 
 Percussion
@@ -49,9 +50,20 @@ Each drum: right-click its name (or click its ... button)
 - Choose another sound: give this drum a sound from any kit you have,
   like a tom from another kit or a bongo from Percussion.
 - Variation: sample kits record each drum several times. "Any" uses
-  them all; a number makes this drum always play that one recording.
-  The drum name then shows v and the number (e.g. v4).
+  them all. Click numbers to use only those: one number = always that
+  recording; several (e.g. 2 and 4) = they take turns or mix at random,
+  as set in Settings. The drum name shows them (e.g. v2,4).
 - Volume: make this drum louder or softer (also in Mix).
+- Ring (cymbals): how long the cymbal sounds. Natural is as recorded;
+  shorter values fade it out sooner (down to 0.3 s).
+
+Dynamics: select hits, right-click > Dynamics
+- Crescendo / Diminuendo: louder (or softer) from the first selected
+  hit to the last. Set where it starts and ends, Listen, then Apply.
+- Accent: makes hits 115 or louder. Ghost note: 36 or softer.
+- Each kind gets its own colour (cyan crescendo, pink diminuendo,
+  lime accent, dotted blue ghost note, red choke), and Humanize
+  leaves marked and choked hits alone. Clear marks removes them.
 
 Cymbal chokes
 - Grab a cymbal on your module while recording and the hit is choked

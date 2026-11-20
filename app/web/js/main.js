@@ -8,7 +8,7 @@ import {
 } from './state.js';
 import { AudioEngine, PRE } from './audio.js';
 import { MidiIO } from './midi.js';
-import { Timeline } from './timeline.js';
+import { Timeline, MARK_STYLE } from './timeline.js';
 import { MAPS, FAMILIES, laneInfo, outputNote, getMap, sortLanes } from './drummap.js';
 import { readMidi, writeMidi } from './smf.js';
 import { encodeWav, computePeaks, peakOf } from './wav.js';
@@ -33,8 +33,19 @@ const DEFAULT_SETTINGS = {
   lastProject: null,
   myKits: [], // kits you put together: a main sample kit plus drums borrowed from others
   variations: 'random', // sample kits: 'random' or 'cycle' (each drum's recordings take turns)
-  hihatWash: true, // open hi-hats played in a row ring into each other
+  // blendHat / blendCym (0-100): how much open hi-hats and crashes played in a row ring
+  // into each other. Not set: 80 (the hi-hat 0 if the older "Separate" switch was chosen).
 };
+
+// Accents are at least this loud, ghost notes at most this loud.
+const ACCENT_VEL = 115;
+const GHOST_VEL = 36;
+
+// "2", "2 and 4", "1, 3 and 5"
+function listText(list) {
+  if (list.length < 2) return String(list[0] ?? '');
+  return `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+}
 
 class App {
   constructor() {
@@ -122,7 +133,7 @@ class App {
     const s = this.settings;
     this.audio.clickOn = !!s.click;
     this.audio.variations = s.variations === 'cycle' ? 'cycle' : 'random';
-    this.audio.wash = s.hihatWash !== false;
+    this.audio.blend = { hat: this.blendAmount('blendHat'), cym: this.blendAmount('blendCym') };
     this.timeline.snap = !!s.snap;
     this.timeline.grid = GRIDS[s.grid] ? s.grid : '16';
     $('#grid').value = this.timeline.grid;
@@ -302,7 +313,7 @@ class App {
       });
     }
     try {
-      const r = await api.loadKit(sfz.path, this.audio.ctx.sampleRate, { noteMap: sfz.noteMap || {}, hihat: sfz.hihat || null, calibrate: sfz.calibrate || null, cc: sfz.ccDefaults || {} });
+      const r = await api.loadKit(sfz.path, this.audio.ctx.sampleRate, { noteMap: sfz.noteMap || {}, hihat: sfz.hihat || null, calibrate: sfz.calibrate || null, cc: sfz.ccDefaults || {}, role: sfz.role || 'drums' });
       this.kitControls = r.controls || [];
       this.mainKeys = new Set(r.keys || []);
       this.kitKeys.set(sfz.path, this.mainKeys);
@@ -741,21 +752,46 @@ class App {
     const e = this.audio.engineNote(laneNote);
     const ov = s.lanes?.[laneNote];
     if (ov && ov.path) {
-      return { path: ov.path, note: ov.note ?? e, raw: !!ov.raw, opts: { noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null, cc: ov.cc || {} } };
+      const role = ov.role || this.programInfo(ov.path)?.kit?.role || 'drums';
+      return { path: ov.path, note: ov.note ?? e, raw: !!ov.raw, opts: { noteMap: ov.noteMap || {}, hihat: ov.hihat || null, calibrate: ov.calibrate || null, cc: ov.cc || {}, role } };
     }
     if (this.mainPlays(e)) {
-      return { path: s.sfz.path, note: e, raw: false, main: true, opts: { noteMap: s.sfz.noteMap || {}, hihat: s.sfz.hihat || null, calibrate: s.sfz.calibrate || null, cc: s.sfz.ccDefaults || {} } };
+      return { path: s.sfz.path, note: e, raw: false, main: true, opts: { noteMap: s.sfz.noteMap || {}, hihat: s.sfz.hihat || null, calibrate: s.sfz.calibrate || null, cc: s.sfz.ccDefaults || {}, role: s.sfz.role || 'drums' } };
     }
     const perc = this.percussionFor(e);
-    if (perc) return { path: perc.program.path, note: e, raw: true, opts: { calibrate: perc.kit.calibrate || null } };
+    if (perc) return { path: perc.program.path, note: e, raw: true, opts: { calibrate: perc.kit.calibrate || null, role: 'percussion' } };
     return null;
   }
 
-  // The one variation (1-based) a lane always plays, if you picked one for its current sound.
-  laneTake(laneNote, src = this.laneSource(laneNote)) {
+  // The variations (1-based) a lane is limited to, if you picked some for its current sound.
+  laneTakes(laneNote, src = this.laneSource(laneNote)) {
     const t = this.store.project.sound.takes?.[laneNote];
     if (!t || !src || t.path !== src.path || Number(t.note) !== Number(src.note) || !!t.raw !== !!src.raw) return null;
-    return t.n;
+    const list = Array.isArray(t.list) ? t.list : t.n ? [t.n] : [];
+    return list.length ? list : null;
+  }
+
+  // How long a cymbal rings (seconds), or 0 for as recorded.
+  laneRing(note) {
+    const r = Number(this.store.project.mix.ring?.[note]);
+    return r > 0 ? r : 0;
+  }
+
+  setLaneRing(note, seconds) {
+    const p = this.store.project;
+    p.mix.ring = { ...(p.mix.ring || {}) };
+    if (seconds > 0) p.mix.ring[note] = seconds;
+    else delete p.mix.ring[note];
+    this.audio.routeVersion = (this.audio.routeVersion || 0) + 1;
+    this.store.touch('mix');
+  }
+
+  // How much open hi-hats (blendHat) or crashes (blendCym) ring into each other, 0..1.
+  blendAmount(key) {
+    const v = this.settings[key];
+    if (typeof v === 'number') return clamp(v, 0, 100) / 100;
+    if (key === 'blendHat' && this.settings.hihatWash === false) return 0;
+    return 0.8;
   }
 
   // What the engine should do with hits on this lane (see AudioEngine.engineHits).
@@ -765,19 +801,28 @@ class App {
     const src = this.laneSource(laneNote);
     if (!src) return { silent: true };
     const gain = this.laneVolume(laneNote);
-    const take = this.laneTake(laneNote, src);
-    if (src.main && gain === 1 && !take) return null;
+    const takes = this.laneTakes(laneNote, src);
+    const ring = this.laneRing(laneNote);
+    if (src.main && gain === 1 && !takes && !ring) return null;
     const route = { path: src.path, note: src.note, raw: src.raw, gain, ...(src.main ? {} : src.opts) };
-    if (take) route.take = take - 1;
+    if (takes?.length === 1) route.take = takes[0] - 1;
+    else if (takes) route.takes = takes.map((k) => k - 1);
+    if (ring) route.ring = ring;
     return route;
   }
 
   setLaneTake(note, n) {
+    this.setLaneTakes(note, n ? [n] : []);
+  }
+
+  // Limit a lane to some of its sound's recordings (1-based); none = all of them.
+  setLaneTakes(note, list) {
     const s = this.store.project.sound;
     s.takes = s.takes || {};
     const src = this.laneSource(note);
-    if (!n || !src) delete s.takes[note];
-    else s.takes[note] = { n, path: src.path, note: src.note, raw: !!src.raw };
+    const clean = [...new Set((list || []).map(Number).filter((k) => k > 0))].sort((a, b) => a - b);
+    if (!clean.length || !src) delete s.takes[note];
+    else s.takes[note] = { list: clean, path: src.path, note: src.note, raw: !!src.raw };
     this.audio.routeVersion = (this.audio.routeVersion || 0) + 1;
     this.store.touch('sound');
     this.timeline.rebuildLanes(true);
@@ -787,12 +832,24 @@ class App {
   // Name, source and status of a lane, for the lane heads and menus.
   laneDisplay(laneNote) {
     const out = this.laneDisplayBase(laneNote);
-    const take = this.laneTake(laneNote);
-    if (take) {
-      out.take = take;
-      out.tip = `${out.label} always plays variation ${take} of ${out.sound || out.label}. Right-click to change it.`;
+    const takes = this.laneTakes(laneNote);
+    if (takes) {
+      out.take = takes;
+      const how = this.settings.variations === 'cycle' ? 'in turn' : 'at random';
+      out.tip = takes.length === 1
+        ? `${out.label} always plays variation ${takes[0]} of ${out.sound || out.label}. Right-click to change it.`
+        : `${out.label} plays variations ${listText(takes)} of ${out.sound || out.label}, ${how}. Right-click to change it.`;
     }
     return out;
+  }
+
+  // Hear one recording of a lane's sound.
+  auditionTake(note, take) {
+    const s = this.store.project.sound;
+    const base = this.routeFor(note) || { path: s.sfz.path, note: this.audio.engineNote(note), raw: false, gain: 1 };
+    const route = { ...base, take: take - 1 };
+    delete route.takes;
+    this.audio.auditionEngine(note, 105, route);
   }
 
   laneDisplayBase(laneNote) {
@@ -895,6 +952,7 @@ class App {
         vol.addEventListener('input', () => { val.textContent = `${vol.value}%`; });
         vol.addEventListener('change', () => { this.setLaneVolume(note, Number(vol.value) / 100); this.audio.audition(note, 105); });
         wrap.append(el('div', { class: 'slider-row' }, el('label', {}, 'Volume'), vol, val));
+        if (this.isCymbal(note)) wrap.append(this.ringRow(note));
         item({ label: 'Save kit setup…', sub: 'Keeps this kit with its sounds, variations and volumes, for other songs', iconName: 'star', onClick: () => this.saveMyKit() });
       }
 
@@ -919,6 +977,21 @@ class App {
     }, { width: 320 });
   }
 
+  // "Ring: Natural … 0.3 s": how long a cymbal sounds.
+  ringRow(note) {
+    const steps = [0.3, 0.4, 0.5, 0.6, 0.8, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 0]; // 0 = as recorded
+    const cur = this.laneRing(note);
+    let idx = cur ? steps.findIndex((x) => x && x >= cur - 1e-6) : steps.length - 1;
+    if (idx < 0) idx = steps.length - 2;
+    const text = (i) => (steps[i] ? `${steps[i]} s` : 'Natural');
+    const input = el('input', { type: 'range', min: 0, max: steps.length - 1, step: 1, value: idx, 'aria-label': 'How long it rings' });
+    const val = el('span', { class: 'value' }, text(idx));
+    input.addEventListener('input', () => { val.textContent = text(Number(input.value)); });
+    input.addEventListener('change', () => { this.setLaneRing(note, steps[Number(input.value)]); this.audio.audition(note, 110); });
+    return el('div', { class: 'slider-row', 'data-tip': 'How long this cymbal rings. Natural is as recorded; shorter fades it out sooner.' },
+      el('label', {}, 'Ring'), input, val);
+  }
+
   // "Variation: Any 1 2 3 …" for a lane's sound. Click a number to hear it and
   // make the drum always play that recording; Any goes back to mixing them.
   variationRow(note, src, onReady) {
@@ -932,25 +1005,42 @@ class App {
         onReady?.();
         return;
       }
-      const current = this.laneTake(note) || 0;
-      const mixing = this.settings.variations === 'cycle' ? 'take turns' : 'are mixed at random';
-      const buttons = [];
-      const make = (n) => {
+      const chosen = new Set((this.laneTakes(note) || []).filter((k) => k <= count));
+      const how = this.settings.variations === 'cycle' ? 'in turn' : 'at random';
+      const status = el('div', { class: 'mi-sub take-status' });
+      const buttons = new Map();
+      const sync = () => {
+        for (const [k, b] of buttons) {
+          const on = k === 0 ? chosen.size === 0 : chosen.has(k);
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
+        const list = [...chosen].sort((a, b) => a - b);
+        status.textContent = !list.length ? `All ${count} recordings, ${how}.`
+          : list.length === 1 ? `Always recording ${list[0]}. Click more numbers to use several.`
+            : `Only recordings ${listText(list)}, ${how}.`;
+      };
+      const make = (k) => {
         const b = el('button', {
-          class: `take-chip${n === current ? ' is-active' : ''}`,
-          'aria-pressed': n === current ? 'true' : 'false',
-          'data-tip': n ? `Always play recording ${n} of ${count}` : `All ${count} recordings ${mixing}`,
-        }, n ? String(n) : 'Any');
+          class: 'take-chip',
+          'data-tip': k ? `Use recording ${k} of ${count} (click again to stop using it)` : `Use all ${count} recordings`,
+        }, k ? String(k) : 'Any');
         b.addEventListener('click', () => {
-          this.setLaneTake(note, n);
-          for (const x of buttons) { x.classList.toggle('is-active', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }
-          this.audio.audition(note, 105);
+          if (k === 0) chosen.clear();
+          else if (chosen.has(k)) chosen.delete(k);
+          else chosen.add(k);
+          this.setLaneTakes(note, [...chosen]);
+          sync();
+          if (k && chosen.has(k)) this.auditionTake(note, k);
+          else this.audio.audition(note, 105);
         });
-        buttons.push(b);
+        buttons.set(k, b);
         return b;
       };
       chips.append(make(0));
-      for (let n = 1; n <= count; n++) chips.append(make(n));
+      for (let k = 1; k <= count; k++) chips.append(make(k));
+      chips.append(status);
+      sync();
       onReady?.();
     }).catch(() => { chips.replaceChildren(el('span', { class: 'mi-sub' }, 'Couldn’t read this sound’s recordings.')); });
     return row;
@@ -1181,10 +1271,10 @@ class App {
     const p = this.store.project;
     const s = p.sound;
     if (s.type === 'sfz' && s.sfz) {
-      return { type: 'sfz', sfz: structuredClone(s.sfz), lanes: structuredClone(s.lanes || {}), takes: structuredClone(s.takes || {}), levels: structuredClone(p.mix.lanes || {}) };
+      return { type: 'sfz', sfz: structuredClone(s.sfz), lanes: structuredClone(s.lanes || {}), takes: structuredClone(s.takes || {}), levels: structuredClone(p.mix.lanes || {}), ring: structuredClone(p.mix.ring || {}) };
     }
     if (s.type === 'kit') {
-      return { type: 'kit', kit: s.kit || 'black-pearl', balance: structuredClone(p.mix.kit || {}), levels: structuredClone(p.mix.lanes || {}) };
+      return { type: 'kit', kit: s.kit || 'black-pearl', balance: structuredClone(p.mix.kit || {}), levels: structuredClone(p.mix.lanes || {}), ring: structuredClone(p.mix.ring || {}) };
     }
     return null;
   }
@@ -1192,7 +1282,7 @@ class App {
   static setupKey(k) {
     if (!k) return '';
     const sfz = k.sfz ? { path: k.sfz.path, cc: k.sfz.cc || {} } : null;
-    return JSON.stringify([k.type || 'sfz', sfz, k.kit || null, k.lanes || {}, k.takes || {}, k.levels || {}, k.balance || {}]);
+    return JSON.stringify([k.type || 'sfz', sfz, k.kit || null, k.lanes || {}, k.takes || {}, k.levels || {}, k.balance || {}, k.ring || {}]);
   }
 
   // The saved kit this song uses, and whether it has been changed since.
@@ -1216,6 +1306,7 @@ class App {
     if (setup.type === 'sfz' && Object.keys(setup.lanes).length) parts.push(`${Object.keys(setup.lanes).length} borrowed sound${Object.keys(setup.lanes).length === 1 ? '' : 's'}`);
     if (setup.type === 'sfz' && Object.keys(setup.takes).length) parts.push(`${Object.keys(setup.takes).length} chosen variation${Object.keys(setup.takes).length === 1 ? '' : 's'}`);
     if (Object.keys(setup.levels).length) parts.push(`${Object.keys(setup.levels).length} drum volume${Object.keys(setup.levels).length === 1 ? '' : 's'}`);
+    if (Object.keys(setup.ring).length) parts.push(`${Object.keys(setup.ring).length} cymbal ring length${Object.keys(setup.ring).length === 1 ? '' : 's'}`);
     const mixer = setup.type === 'sfz' ? (Object.keys(setup.sfz.cc || {}).length ? 'its kit mixer' : null) : 'its kit balance';
     if (mixer) parts.push(mixer);
     const what = parts.length ? `${kitName} with ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}` : kitName;
@@ -1256,6 +1347,7 @@ class App {
     if ((mk.type || 'sfz') === 'kit') {
       this.audio.stop();
       p.mix.lanes = structuredClone(mk.levels || {});
+      p.mix.ring = structuredClone(mk.ring || {});
       p.mix.kit = { ...p.mix.kit, ...(mk.balance || {}) };
       this.store.touch('mix');
       await this.chooseKit(mk.kit || 'black-pearl', mk.id);
@@ -1271,6 +1363,7 @@ class App {
     this.audio.stop();
     p.sound = { ...p.sound, type: 'sfz', sfz: structuredClone(mk.sfz), lanes: structuredClone(mk.lanes || {}), takes: structuredClone(mk.takes || {}), myKit: mk.id };
     p.mix.lanes = structuredClone(mk.levels || {});
+    p.mix.ring = structuredClone(mk.ring || {});
     this.mainKeys = null;
     this.store.touch('sound');
     const ok = await this.loadSfz(p.sound.sfz);
@@ -1800,6 +1893,117 @@ class App {
     return ids.size;
   }
 
+  // ---- dynamics marks --------------------------------------------------------
+  // "Dynamics" in the hits menu: crescendo, diminuendo, accent, ghost note, choke.
+  dynamicsSection(hits, close, at) {
+    const box = el('div', { class: 'dyn-grid' });
+    const add = (style, label, tip, onClick, disabled = false) => {
+      const b = el('button', { class: 'dyn-btn', disabled, 'data-tip': tip },
+        el('span', { class: `dyn-dot${style ? '' : ' is-empty'}`, style: style ? { background: style.color } : {} }), label);
+      b.addEventListener('click', () => { close(); onClick(); });
+      box.append(b);
+    };
+    const ramp = new Set(hits.map((n) => n.t.toFixed(4))).size >= 2;
+    const rampTip = ramp ? '' : ' Select at least two hits.';
+    add(MARK_STYLE.cresc, 'Crescendo…', `Louder from the first selected hit to the last.${rampTip}`, () => this.openRamp(hits, 'cresc', at), !ramp);
+    add(MARK_STYLE.dim, 'Diminuendo…', `Softer from the first selected hit to the last.${rampTip}`, () => this.openRamp(hits, 'dim', at), !ramp);
+    add(MARK_STYLE.acc, 'Accent', `Makes them ${ACCENT_VEL} or louder`, () => this.markHits(hits, 'acc'));
+    add(MARK_STYLE.ghost, 'Ghost note', `Makes them ${GHOST_VEL} or softer`, () => this.markHits(hits, 'ghost'));
+    const cymbals = hits.filter((n) => this.isCymbal(n.n));
+    if (cymbals.length) {
+      const all = cymbals.every((n) => n.ch > 0);
+      add(MARK_STYLE.choke, all ? 'Remove choke' : 'Choke',
+        all ? 'The cymbals ring out again' : 'A hand grabs the cymbal a beat later. Drag the end of the line to change when. (K)',
+        () => this.chokeHits(cymbals, !all));
+    }
+    if (hits.some((n) => n.mk)) add(null, 'Clear marks', 'Removes the marks and keeps how loud the hits are', () => this.markHits(hits, null));
+    return el('div', { class: 'dyn-section' },
+      el('div', { class: 'section-title' }, 'Dynamics'),
+      box,
+      el('p', { class: 'note' }, 'Marked and choked hits get their own colour, and Humanize leaves them alone.'));
+  }
+
+  // Mark hits as accents or ghost notes (and make them loud or soft), or clear marks.
+  markHits(list, mk) {
+    const ids = new Set(list.map((n) => n.id));
+    if (!ids.size) return;
+    const label = mk ? `Mark as ${MARK_STYLE[mk].label.toLowerCase()}` : 'Clear marks';
+    this.store.edit(label, (proj, take) => {
+      for (const n of take.notes) {
+        if (!ids.has(n.id)) continue;
+        if (!mk) { delete n.mk; continue; }
+        n.mk = mk;
+        if (mk === 'acc') n.v = Math.max(n.v, ACCENT_VEL);
+        if (mk === 'ghost') n.v = Math.min(n.v, GHOST_VEL);
+      }
+    });
+    this.timeline.dirty = true;
+    const count = `${ids.size} hit${ids.size === 1 ? '' : 's'}`;
+    this.hint(mk ? `${count} marked as ${MARK_STYLE[mk].label.toLowerCase()}. Humanize leaves ${ids.size === 1 ? 'it' : 'them'} alone.` : `Marks cleared from ${count}.`);
+  }
+
+  // Crescendo or diminuendo across the selected hits, with a live preview.
+  openRamp(list, kind, at) {
+    const ids = new Set(list.map((n) => n.id));
+    const hits = this.store.notes.filter((n) => ids.has(n.id));
+    if (hits.length < 2) return;
+    const t0 = Math.min(...hits.map((n) => n.t));
+    const t1 = Math.max(...hits.map((n) => n.t));
+    if (!(t1 > t0)) return;
+    const orig = new Map(hits.map((n) => [n.id, n.v]));
+    const up = kind === 'cresc';
+    const vals = hits.map((n) => n.v);
+    let from = up ? Math.min(45, ...vals) : Math.max(115, ...vals);
+    let to = up ? Math.max(115, ...vals) : Math.min(45, ...vals);
+    const level = (n) => clamp(Math.round(from + ((to - from) * (n.t - t0)) / (t1 - t0)), 1, 127);
+    const preview = () => { for (const n of hits) n.v = level(n); this.timeline.dirty = true; };
+    const restore = () => { for (const n of hits) n.v = orig.get(n.id); this.timeline.dirty = true; };
+    let done = false;
+    const style = MARK_STYLE[kind];
+    popover(at, (close) => {
+      const slider = (label, value, set) => {
+        const input = el('input', { type: 'range', min: 1, max: 127, step: 1, value, 'aria-label': label });
+        const val = el('span', { class: 'value' }, String(value));
+        input.addEventListener('input', () => { set(Number(input.value)); val.textContent = input.value; preview(); });
+        return el('div', { class: 'slider-row' }, el('label', {}, label), input, val);
+      };
+      const apply = el('button', { class: 'btn btn-primary' }, `Apply ${style.label.toLowerCase()}`);
+      apply.addEventListener('click', () => {
+        done = true;
+        const levels = new Map(hits.map((n) => [n.id, level(n)]));
+        restore();
+        this.store.edit(style.label, (proj, take) => {
+          for (const n of take.notes) {
+            if (!levels.has(n.id)) continue;
+            n.v = levels.get(n.id);
+            n.mk = kind;
+          }
+        });
+        close();
+        this.hint(`${style.label} on ${hits.length} hits, from ${from} to ${to}. Humanize leaves them alone.`);
+      });
+      const listen = el('button', { class: 'btn' }, icon('play'), 'Listen');
+      listen.addEventListener('click', () => {
+        this.audio.seek(Math.max(0, t0 - 0.4));
+        if (!this.audio.isPlaying) this.togglePlay();
+      });
+      preview();
+      return el('div', {},
+        el('h3', { class: 'dyn-title' }, el('span', { class: 'dyn-dot', style: { background: style.color } }), style.label),
+        el('p', { class: 'note' }, `${hits.length} hits get ${up ? 'louder' : 'softer'} from the first to the last. 1 is the softest hit, 127 the hardest.`),
+        slider('Starts at', from, (v) => { from = v; }),
+        slider('Ends at', to, (v) => { to = v; }),
+        el('div', { class: 'pop-actions' }, listen, apply));
+    }, {
+      width: 320,
+      onClose: () => {
+        if (done) return;
+        restore();
+        if (this.audio.isPlaying && !this.audio.isRecording) this.audio.stop();
+      },
+    });
+  }
+
   toggleChokeSelected() {
     const cymbals = this.timeline.selectedNotes().filter((n) => this.isCymbal(n.n));
     if (!cymbals.length) {
@@ -2266,9 +2470,10 @@ class App {
       const apply = el('button', { class: 'btn btn-primary' }, 'Humanize');
       apply.addEventListener('click', () => {
         this.saveSetting({ humanizeMs: Number(ms.value), humanizeVel: Number(vel.value) });
-        const n = this.timeline.humanize({ timingMs: Number(ms.value), velocity: Number(vel.value) });
+        const r = this.timeline.humanize({ timingMs: Number(ms.value), velocity: Number(vel.value) });
         close();
-        if (n) toast(`Humanized ${n} hit${n === 1 ? '' : 's'}.`);
+        const kept = r.kept ? ` ${r.kept} marked or choked hit${r.kept === 1 ? ' was' : 's were'} left as ${r.kept === 1 ? 'it was' : 'they were'}.` : '';
+        if (r.changed || r.kept) toast(`Humanized ${r.changed} hit${r.changed === 1 ? '' : 's'}.${kept}`);
       });
       return el('div', {},
         el('h3', {}, 'Humanize'),
@@ -2420,18 +2625,7 @@ class App {
         item({ label: 'Copy to another drum…', iconName: 'copy', onClick: () => this.openLanePicker(null, 'copy', at) });
         item({ label: 'Quantize…', key: 'Q', iconName: 'quantize', onClick: () => this.openQuantize($('#btn-quantize')) });
         item({ label: 'Velocity…', iconName: 'velocity', onClick: () => this.openVelocity($('#btn-velocity')) });
-        const cymbals = this.timeline.selectedNotes().filter((x) => this.isCymbal(x.n));
-        if (cymbals.length) {
-          const choked = cymbals.filter((x) => x.ch > 0);
-          if (choked.length < cymbals.length) {
-            item({
-              label: cymbals.length > 1 ? `Choke ${cymbals.length} cymbal hits` : 'Choke this cymbal', key: 'K', iconName: 'choke',
-              sub: 'A hand grabs it a beat later. Drag the end of the line to change when.',
-              onClick: () => this.chokeHits(cymbals, true),
-            });
-          }
-          if (choked.length) item({ label: choked.length > 1 ? `Remove ${choked.length} chokes` : 'Remove the choke', iconName: 'choke', onClick: () => this.chokeHits(choked, false) });
-        }
+        wrap.append(this.dynamicsSection(this.timeline.selectedNotes(), close, at));
       }
       if (note) {
         const info = { label: this.laneDisplay(note.n).label };
@@ -2632,7 +2826,7 @@ class App {
         sampleRate: this.audio.ctx.sampleRate,
         cc: this.audio.engineCC(),
         variations: this.audio.variations,
-        wash: this.audio.wash,
+        blend: this.audio.blend,
       });
       onProgress?.(0.45);
     } else if (!this.audio.sampler.kit) {
@@ -2686,14 +2880,17 @@ class App {
       variationList.append(el('label', { class: 'check' }, input, el('span', {}, label, el('span', { class: 'mi-sub' }, sub))));
     }
 
-    const washList = el('div', { class: 'radio-list' });
-    for (const [value, label, sub] of [
-      [true, 'Connected', 'Played open in a row, the hi-hat keeps ringing under the next hit, like a real one.'],
-      [false, 'Separate', 'Each open hit starts fresh and cuts the one before short.'],
-    ]) {
-      const input = el('input', { type: 'radio', name: 'hihatWash', value: String(value), checked: (s.hihatWash !== false) === value });
-      input.addEventListener('change', () => { this.saveSetting({ hihatWash: value }); toast(`Open hi-hat: ${label.toLowerCase()}. You’ll hear it on the next playback.`); });
-      washList.append(el('label', { class: 'check' }, input, el('span', {}, label, el('span', { class: 'mi-sub' }, sub))));
+    const blendList = el('div', { class: 'blend-list' });
+    for (const [key, label] of [['blendHat', 'Open hi-hat'], ['blendCym', 'Crashes']]) {
+      const value = Math.round(this.blendAmount(key) * 100);
+      const input = el('input', { type: 'range', min: 0, max: 100, step: 5, value, 'aria-label': `${label} blend` });
+      const val = el('span', { class: 'value' }, value ? `${value}%` : 'Off');
+      input.addEventListener('input', () => { val.textContent = Number(input.value) ? `${input.value}%` : 'Off'; });
+      input.addEventListener('change', () => {
+        this.saveSetting({ [key]: Number(input.value) });
+        toast(`${label} blend: ${Number(input.value) ? `${input.value}%` : 'off'}. You’ll hear it on the next playback.`);
+      });
+      blendList.append(el('div', { class: 'slider-row' }, el('label', {}, label), input, val));
     }
 
     const monitor = el('input', { type: 'checkbox', checked: s.monitor });
@@ -2727,8 +2924,9 @@ class App {
           el('h3', {}, 'Sound variations'),
           el('p', { class: 'note', style: { margin: '2px 8px 4px' } }, 'Sample kits have several recordings of each drum. How a drum picks one for each hit:'),
           variationList,
-          el('h3', {}, 'Open hi-hat'),
-          washList,
+          el('h3', {}, 'Blend'),
+          el('p', { class: 'note' }, 'When an open hi-hat or a crash is hit again while it’s still ringing, the ring carries on under the new hit and the new hit starts softer, so fast hits sound like one wash. Off: every hit starts fresh.'),
+          blendList,
           el('h3', {}, 'Where things are saved'),
           el('p', { class: 'note' }, `Songs: ${this.folders?.projects || 'Projects folder'}`),
           el('p', { class: 'note' }, `Exports: ${this.folders?.exports || 'Exports folder'}`))),
@@ -2759,10 +2957,11 @@ class App {
           el('h3', {}, 'Mouse'),
           el('p', { class: 'note' }, 'Double-click a lane to add a hit, double-click a hit to delete it. Drag hits to move them, drag empty space to select several. Scroll to move through the song, Ctrl+scroll to zoom, Shift+scroll to see more drums.'),
           el('h3', {}, 'Drums and their sounds'),
-          el('p', { class: 'note' }, 'Right-click a drum name (or use its ••• button) to move, copy or swap its hits with another drum, change its volume, or give it a sound from any of your kits, like a tom from another kit or a conga from Percussion. With a sample kit you can also pick one Variation, so the drum always plays that recording.'),
+          el('p', { class: 'note' }, 'Right-click a drum name (or use its ••• button) to move, copy or swap its hits with another drum, change its volume, or give it a sound from any of your kits, like a tom from another kit or a conga from Percussion. With a sample kit you can also pick which Variations it uses: one, so it always plays that recording, or several, which it mixes.'),
           el('p', { class: 'note' }, 'Sound › Save kit setup keeps the kit with its borrowed sounds, chosen variations, drum volumes and kit mixer. Pick it in any song from Sound › My kits.'),
-          el('h3', {}, 'Cymbal chokes'),
-          el('p', { class: 'note' }, 'Grab a cymbal on your module while recording and the hit is choked. To add one by hand, select cymbal hits and press K (or right-click › Choke). Drag the end of the line to change when the cymbal is grabbed.'),
+          el('h3', {}, 'Dynamics: crescendo, accents, ghost notes, chokes'),
+          el('p', { class: 'note' }, 'Select hits and right-click › Dynamics. Crescendo and Diminuendo ramp the velocity from the first hit to the last (you can set where it starts and ends). Accent makes hits loud, Ghost note makes them soft. Each gets its own colour, and Humanize leaves marked hits alone.'),
+          el('p', { class: 'note' }, 'Chokes: grab a cymbal on your module while recording, or select cymbal hits and press K. Drag the end of the line to change when the cymbal is grabbed. A cymbal’s Ring (in its menu) makes it fade out sooner.'),
           el('h3', {}, 'Tempo changes'),
           el('p', { class: 'note' }, 'Click the button next to Tap, or right-click the ruler at a bar, to play faster or slower from that bar on. The click, the grid and the bar numbers follow. The tempo box shows the tempo where the playhead is.'),
           el('h3', {}, 'Credits'),

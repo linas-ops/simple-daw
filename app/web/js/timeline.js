@@ -25,6 +25,17 @@ const COLORS = {
   select: 'rgba(236,231,220,0.95)',
 };
 
+// Highlight colours for marked hits (n.mk) and choked ones (n.ch).
+export const MARK_STYLE = {
+  cresc: { label: 'Crescendo', color: '#38d9f5' },
+  dim: { label: 'Diminuendo', color: '#f472d0' },
+  acc: { label: 'Accent', color: '#c5f04a' },
+  ghost: { label: 'Ghost note', color: '#9ec5ff' },
+  choke: { label: 'Choke', color: '#ff6b5c' },
+};
+
+export const markOf = (n) => (n.mk ? MARK_STYLE[n.mk] : n.ch > 0 ? MARK_STYLE.choke : null);
+
 function cssFont(weight, size, family = '"Barlow Condensed", "Barlow", sans-serif') {
   return `${weight} ${size}px ${family}`;
 }
@@ -371,6 +382,7 @@ export class Timeline extends Emitter {
         for (const n of chosen) {
           const c = { id: uid(), t: n.t, n: to, v: n.v };
           if (n.ch) c.ch = n.ch;
+          if (n.mk) c.mk = n.mk;
           take.notes.push(c);
           copies.push(c.id);
         }
@@ -405,7 +417,7 @@ export class Timeline extends Emitter {
     if (!sel.length) return 0;
     const p = this.p;
     const b0 = beatAt(p, Math.min(...sel.map((n) => n.t)));
-    this.clipboard = sel.map((n) => ({ b: beatAt(p, n.t) - b0, n: n.n, v: n.v, ch: n.ch || 0 }));
+    this.clipboard = sel.map((n) => ({ b: beatAt(p, n.t) - b0, n: n.n, v: n.v, ch: n.ch || 0, mk: n.mk || null }));
     return sel.length;
   }
 
@@ -418,6 +430,7 @@ export class Timeline extends Emitter {
       for (const c of this.clipboard) {
         const n = this.addNote(timeAtBeat(p, start + c.b), c.n, c.v);
         if (c.ch) n.ch = c.ch;
+        if (c.mk) n.mk = c.mk;
         added.push(n);
       }
     });
@@ -438,6 +451,7 @@ export class Timeline extends Emitter {
       for (const n of sel) {
         const c = this.addNote(timeAtBeat(p, beatAt(p, n.t) + shift), n.n, n.v);
         if (n.ch) c.ch = n.ch;
+        if (n.mk) c.mk = n.mk;
         added.push(c);
       }
     });
@@ -462,7 +476,7 @@ export class Timeline extends Emitter {
       for (const n of take.notes) {
         const prev = keep.length ? keep[keep.length - 1] : null;
         const dupe = prev && prev.n === n.n && Math.abs(prev.t - n.t) < 0.002 && (ids.has(n.id) || ids.has(prev.id));
-        if (dupe) { prev.v = Math.max(prev.v, n.v); if (n.ch && !prev.ch) prev.ch = n.ch; continue; }
+        if (dupe) { prev.v = Math.max(prev.v, n.v); if (n.ch && !prev.ch) prev.ch = n.ch; if (n.mk && !prev.mk) prev.mk = n.mk; continue; }
         keep.push(n);
       }
       take.notes = keep;
@@ -471,9 +485,13 @@ export class Timeline extends Emitter {
     return targets.length;
   }
 
+  // Small random changes in timing and velocity. Accents, ghost notes, crescendos,
+  // diminuendos and choked hits are left as they are. Returns {changed, kept}.
   humanize({ timingMs = 8, velocity = 8 } = {}) {
-    const targets = this.targetNotes();
-    if (!targets.length) return 0;
+    const all = this.targetNotes();
+    const targets = all.filter((n) => !markOf(n));
+    const kept = all.length - targets.length;
+    if (!targets.length) return { changed: 0, kept };
     const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
     this.store.edit('Humanize', () => {
       for (const n of targets) {
@@ -481,7 +499,7 @@ export class Timeline extends Emitter {
         n.v = clamp(Math.round(n.v + gauss() * velocity), 1, 127);
       }
     });
-    return targets.length;
+    return { changed: targets.length, kept };
   }
 
   changeVelocity(fn, label = 'Change velocity') {
@@ -606,7 +624,9 @@ export class Timeline extends Emitter {
       this.hoverNote = note;
       this.dirty = true;
     }
+    const mark = note ? markOf(note) : null;
     if (this.tool === 'draw') this.emit('hint', note ? 'Click to remove this hit.' : 'Click to add a hit. Drag along a lane to add several.');
+    else if (mark) this.emit('hint', `${mark.label}: Humanize leaves this hit alone. Right-click to remove the mark. Drag to move.`);
     else this.emit('hint', note ? 'Drag to move. Double-click to delete. Ctrl-click to add to the selection.' : 'Double-click to add a hit. Drag to select several hits. Right-click for more.');
     this.cv.grid.style.cursor = this.tool === 'draw' ? 'crosshair' : note ? 'grab' : 'default';
   }
@@ -1131,8 +1151,8 @@ export class Timeline extends Emitter {
         const xe = this.t2x(n.t + n.ch);
         const yc = li * laneH + laneH / 2;
         const grabbing = this.drag?.type === 'choke' && this.drag.note === n;
-        g.globalAlpha = muted ? 0.3 : grabbing ? 1 : 0.8;
-        g.strokeStyle = info.color;
+        g.globalAlpha = muted ? 0.3 : grabbing ? 1 : 0.85;
+        g.strokeStyle = MARK_STYLE.choke.color;
         g.lineWidth = 1.5;
         g.setLineDash([3, 3]);
         g.beginPath(); g.moveTo(x + hw / 2, yc); g.lineTo(xe, yc); g.stroke();
@@ -1145,10 +1165,22 @@ export class Timeline extends Emitter {
       roundRect(g, x - hw / 2, y, hw, hh, Math.min(3, hw / 2));
       g.fill();
       g.globalAlpha = 1;
+      const mark = live ? null : markOf(n);
+      if (mark) {
+        g.globalAlpha = muted ? 0.4 : 1;
+        g.strokeStyle = mark.color;
+        g.lineWidth = 2;
+        if (n.mk === 'ghost') g.setLineDash([2, 2]);
+        roundRect(g, x - hw / 2 - 2.5, y - 2.5, hw + 5, hh + 5, 3);
+        g.stroke();
+        g.setLineDash([]);
+        g.globalAlpha = 1;
+      }
+      const out = mark ? 5 : 2;
       if (sel) {
         g.strokeStyle = COLORS.select;
         g.lineWidth = 1.6;
-        roundRect(g, x - hw / 2 - 2, y - 2, hw + 4, hh + 4, 3);
+        roundRect(g, x - hw / 2 - out, y - out, hw + out * 2, hh + out * 2, 3);
         g.stroke();
       } else if (live) {
         g.strokeStyle = 'rgba(240,74,62,0.9)';
@@ -1211,7 +1243,7 @@ export class Timeline extends Emitter {
       const vh = (n.v / 127) * (h - 10);
       const sel = this.selection.has(n.id);
       g.globalAlpha = restrict && !sel ? 0.22 : 0.9;
-      g.fillStyle = laneInfo(p.drumMap, n.n).color;
+      g.fillStyle = markOf(n)?.color || laneInfo(p.drumMap, n.n).color;
       g.fillRect(x - bw / 2, h - 4 - vh, bw, vh);
       g.fillRect(x - bw / 2 - 1.5, h - 4 - vh - 1, bw + 3, 2.5);
     }

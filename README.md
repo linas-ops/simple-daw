@@ -10,11 +10,12 @@ A small, friendly recording app for electronic drums on Windows. Record your kit
 - **Plays them back with real sampled kits.** Each hit picks from several recordings at the right loudness, so a snare roll sounds like a drummer, not a loop. Free kits download from inside the app: Naked Drums, Muldjord Kit, DRS Kit and Percussion.
 - **Percussion:** cajón, bongos, congas, shaker, tambourine, cowbell, agogô, triangle and more. Pick it as your kit and your pads play it, or put percussion next to your drums.
 - **Mix and match kits:** any drum can borrow a sound from any kit, like a tom from another kit or a conga from Percussion.
-- **Pick one variation per drum:** sample kits record each drum several times. Use them all (at random or in turn), or lock a drum to the one recording you like.
+- **Pick the variations each drum uses:** sample kits record each drum several times. Use them all (at random or in turn), only the ones you like, or lock a drum to one recording.
 - **Save your kit setup** with its borrowed sounds, chosen variations, drum volumes and kit mixer, and pick it in any song from Sound › My kits.
-- **Cymbal chokes:** grab a cymbal on your module while recording, or add a choke by hand and drag where the cymbal is grabbed.
+- **Dynamics marks:** crescendo and diminuendo across selected hits, accents and ghost notes, each in its own colour. Humanize leaves marked hits alone.
+- **Cymbal chokes and ring length:** grab a cymbal on your module while recording, or add a choke by hand; set how long each cymbal rings.
 - **Tempo changes from any bar.** The click, the grid and the bar numbers follow, and MIDI files keep them in and out.
-- **Open hi-hats that ring together,** so eighth notes on an open hi-hat sound like one continuous wash, as on a real kit.
+- **Open hi-hats and crashes that ring together,** so fast repeated hits sound like one continuous wash, as on a real kit, with a slider for how much.
 - **Move, copy or swap hits between drums**, for example to turn a snare part into a conga part.
 - **Edit like a normal DAW:** draw and delete hits, quantize, humanize, change velocity, loop a part, undo everything, import MIDI and add a backing track.
 - **Exports** WAV and MIDI files.

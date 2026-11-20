@@ -34,12 +34,16 @@ HEADER_RE = re.compile(r"<(\w+)>")
 OPCODE_RE = re.compile(r"(?:(?<=\s)|(?<=>)|^)([A-Za-z_][A-Za-z0-9_]*)=", re.M)
 DIRECTIVE_RE = re.compile(r"#(define|include)\b")
 FAST_RELEASE = 0.006
-# An open hi-hat hit this soon after the last open hit rings into it (see render's wash):
-# the last hit fades out over WASH_RELEASE (base + per second of gap, within limits) and
-# the new hit starts at WASH_SOFT[0] of its level, reaching full level after WASH_SOFT[1] s.
-WASH_MAX_GAP = 0.75
-WASH_RELEASE = (0.4, 3.0, 0.5, 1.5)
-WASH_SOFT = (0.28, 0.11)
+# A hit on an open hi-hat or a crash that is still ringing blends into it (see render's
+# blend). For each kind: how soon the next hit must come (s); how the last ring fades
+# under it (base + per second of gap, within limits, s, at blend 0.8); how soft the new
+# attack starts at full blend (floor) and over how long it reaches full level (span, s);
+# and the gap below which the new attack is softest (near, s). A crash is tracked per key,
+# the hi-hat as one instrument.
+BLEND_KINDS = {
+    "hat": {"max_gap": 0.75, "release": (0.4, 3.0, 0.5, 1.5), "floor": 0.1, "span": 0.11, "near": 0.18},
+    "cym": {"max_gap": 1.6, "release": (0.8, 2.5, 1.0, 3.5), "floor": 0.25, "span": 0.13, "near": 0.25},
+}
 # How fast a grabbed (choked) cymbal goes quiet.
 CHOKE_FADE = 0.15
 
@@ -728,17 +732,19 @@ class SfzKit:
         return gain * min(1.0, 1.0 - pan), gain * min(1.0, 1.0 + pan)
 
     def render(self, events, duration: float, sr: int, cc_overrides: dict | None = None, seed: int | None = None,
-               vary: bool = True, variations: str = "cycle", wash=None):
-        """events: sorted list of (seconds, 'note', note, vel[, gain[, take]]), (seconds, 'cc', number, value127)
-        or (seconds, 'choke', note, 0).
+               vary: bool = True, variations: str = "cycle", wash=None, blend=None):
+        """events: sorted list of (seconds, 'note', note, vel[, gain[, take[, ring]]]),
+        (seconds, 'cc', number, value127) or (seconds, 'choke', note, 0).
 
         A choke is a hand grabbing the cymbal: everything that key is playing fades out
-        within CHOKE_FADE.
+        within CHOKE_FADE. ring (seconds) shortens a hit: it sounds as recorded for the first
+        30% of that time, then dies away (exponentially) to silence (-60 dB) at `ring`.
 
-        wash: the keys that play the open hi-hat. When one of them is hit while the hat still
-        rings from the last open hit, that ring fades out slowly under the new hit and the new
-        hit starts a little softer, the way an open hi-hat played in eighths sounds like one
-        continuous wash. None or empty keeps every hit separate.
+        blend: {"hat": {"keys": [...], "amount": 0..1}, "cym": {...}}. When an open hi-hat
+        (or a crash) is hit while it still rings from its last hit, that ring fades out slowly
+        under the new hit and the new hit starts softer, the way an open hi-hat played in
+        eighths sounds like one continuous wash. amount 0 (or no blend) keeps every hit
+        separate. wash (a list of keys) is the older form: the hi-hat at 0.8.
 
         take (0-based) makes the hit always play that one recording of the sound
         (see take_count), with no random tuning or level.
@@ -763,8 +769,15 @@ class SfzKit:
         by_group_key: dict[tuple, list] = {}
         by_group: dict[int, list] = {}
         by_key: dict[int, list] = {}
-        wash_keys = {int(k) for k in (wash or ())}
-        wash_prev = None  # (frame, voices) of the last open hi-hat hit
+        if blend is None and wash:
+            blend = {"hat": {"keys": list(wash), "amount": 0.8}}
+        blend_of: dict[int, tuple] = {}
+        for kind, spec in (blend or {}).items():
+            amount = min(1.0, max(0.0, float(spec.get("amount", 0.0) or 0.0)))
+            if kind in BLEND_KINDS and amount > 0.0:
+                for k in spec.get("keys") or ():
+                    blend_of[int(k)] = (kind, amount)
+        blend_prev: dict = {}  # "hat" or ("cym", key) -> (frame, voices) of its last hit
 
         def stop_voice(v, frame, fade=None):
             """Start fading a voice out. A later stop can only make it end sooner."""
@@ -780,6 +793,7 @@ class SfzKit:
         for ev in events:
             t, kind, a, b = ev[0], ev[1], ev[2], ev[3]
             frame = int(round(t * sr))
+            ring = float(ev[6]) if kind == "note" and len(ev) > 6 and ev[6] else 0.0
             if kind == "cc":
                 cc[int(a)] = min(1.0, max(0.0, b / 127.0))
                 continue
@@ -829,25 +843,33 @@ class SfzKit:
                     triggered.append(r)
             if not triggered:
                 continue
-            is_wash = int(a) in wash_keys
+            blending = blend_of.get(int(a))
+            track = None
             ringing = ()
             soften = None
-            if is_wash and wash_prev is not None:
-                gap = (frame - wash_prev[0]) / sr
-                ringing = [v for v in wash_prev[1] if v["stop"] is None]
-                if ringing and 0.0 < gap < WASH_MAX_GAP:
-                    # The last hit keeps ringing under this one and fades away over about
-                    # two hits; this hit's attack is gentler the closer it follows.
-                    base, per_gap, lo, hi = WASH_RELEASE
-                    release = min(hi, max(lo, base + per_gap * gap))
-                    for v in ringing:
-                        stop_voice(v, frame, release * sr)
-                    closeness = min(1.0, max(0.0, (gap - 0.18) / (WASH_MAX_GAP - 0.18)))
-                    g0 = WASH_SOFT[0] + (1.0 - WASH_SOFT[0]) * closeness
-                    if g0 < 0.99:
-                        soften = (max(1, int(WASH_SOFT[1] * sr)), g0)
-                else:
-                    ringing = ()
+            if blending is not None:
+                kind, amount = blending
+                spec = BLEND_KINDS[kind]
+                track = kind if kind == "hat" else (kind, int(a))
+                prev = blend_prev.get(track)
+                if prev is not None:
+                    gap = (frame - prev[0]) / sr
+                    ringing = [v for v in prev[1] if v["stop"] is None]
+                    if ringing and 0.0 < gap < spec["max_gap"]:
+                        # The last hit keeps ringing under this one and fades away over the
+                        # next hit or two; this hit's attack is gentler the closer it follows.
+                        base, per_gap, lo, hi = spec["release"]
+                        release = min(hi, max(lo, base + per_gap * gap)) * (0.4 + 0.75 * amount)
+                        for v in ringing:
+                            stop_voice(v, frame, release * sr)
+                        near = spec["near"]
+                        closeness = min(1.0, max(0.0, (gap - near) / (spec["max_gap"] - near)))
+                        softest = 1.0 - (1.0 - spec["floor"]) * amount
+                        g0 = softest + (1.0 - softest) * closeness
+                        if g0 < 0.99:
+                            soften = (max(1, int(spec["span"] * sr)), g0)
+                    else:
+                        ringing = ()
             fading = {id(v) for v in ringing}
             for g in {r.group for r in triggered}:
                 for v in by_offby.get(g, ()):
@@ -895,7 +917,13 @@ class SfzKit:
                     "end_at": None,
                     "fade": max(1, int(r.off_time * sr)),
                     "attack": soften,
+                    "decay": None,
                 }
+                if ring > 0.0:
+                    # Shorter ring: as recorded at first, then an exponential fade to -60 dB.
+                    hold = ring * 0.3
+                    v["decay"] = (int(hold * sr), max(1.0, (ring - hold) * sr / 6.9))
+                    stop_voice(v, v["start"] + int(ring * sr), 0.02 * sr)
                 voices.append(v)
                 new_voices.append(v)
                 by_key.setdefault(note, []).append(v)
@@ -905,8 +933,8 @@ class SfzKit:
                     by_group_key.setdefault((r.group, note), []).append(v)
                 if r.polyphony:
                     by_group.setdefault(r.group, []).append(v)
-            if is_wash and new_voices:
-                wash_prev = (frame, new_voices)
+            if track is not None and new_voices:
+                blend_prev[track] = (frame, new_voices)
         for v in voices:
             data = v["data"]
             s0 = v["start"]
@@ -934,6 +962,14 @@ class SfzKit:
                     env = np.ones(b - a, dtype=np.float32)
                     x = np.arange(ea - s0, eb - s0, dtype=np.float32) / span
                     env[ea - a: eb - a] = g0 + (1.0 - g0) * (0.5 - 0.5 * np.cos(np.pi * x))
+            if v["decay"] is not None:
+                hold, tau = v["decay"]
+                da = max(a, s0 + hold)
+                if da < b:
+                    if env is None:
+                        env = np.ones(b - a, dtype=np.float32)
+                    x = np.arange(da - s0 - hold, b - s0 - hold, dtype=np.float32)
+                    env[da - a:] *= np.exp(-x / tau).astype(np.float32)
             for stop, fade in v["stops"]:
                 if stop >= b:
                     continue

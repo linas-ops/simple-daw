@@ -63,16 +63,42 @@ export class KitSampler {
 // Cymbals that are one piece of metal: grabbing one stops the others too.
 const SAME_CYMBAL = { ride: ['ride', 'bell'], bell: ['ride', 'bell'], rideEdge: ['rideEdge'] };
 
+// A hit on an open hi-hat or a crash that's still ringing blends into it: the ring fades
+// out under the new hit and the new hit starts softer (same numbers as the sample-kit engine).
+const BLEND_KINDS = {
+  hat: { maxGap: 0.75, release: [0.4, 3.0, 0.5, 1.5], floor: 0.1, span: 0.11, near: 0.18 },
+  cym: { maxGap: 1.6, release: [0.8, 2.5, 1.0, 3.5], floor: 0.25, span: 0.13, near: 0.25 },
+};
+const CRASH_VOICES = new Set(['crash1', 'crash2', 'china', 'splash']);
+
 export class KitPlayer {
   constructor(sampler, ctx, destination) {
     this.s = sampler;
     this.ctx = ctx;
     this.dest = destination;
     this.active = [];
-    this.wash = true; // open hi-hats ring into each other
+    this.blend = { hat: 0.8, cym: 0.8 }; // how much repeated open hi-hats and crashes ring together
   }
 
-  // `choke`: seconds after the hit when a hand grabs the cymbal.
+  // Blend a new hit into what `keys` still ring. Returns the gain the new hit starts at
+  // (1 = full), or null when it doesn't blend.
+  blendInto(kind, keys, when) {
+    const amount = this.blend?.[kind] || 0;
+    if (amount <= 0) return null;
+    const spec = BLEND_KINDS[kind];
+    const ringing = this.active.filter((v) => keys.includes(v.key) && v.start < when && v.end > when);
+    if (!ringing.length) return null;
+    const gap = when - Math.max(...ringing.map((v) => v.start));
+    if (!(gap > 0 && gap < spec.maxGap)) return null;
+    const [base, perGap, lo, hi] = spec.release;
+    const release = clamp(base + perGap * gap, lo, hi) * (0.4 + 0.75 * amount);
+    for (const v of ringing) this.fade(v, when, release);
+    const softest = 1 - (1 - spec.floor) * amount;
+    return softest + (1 - softest) * clamp((gap - spec.near) / (spec.maxGap - spec.near), 0, 1);
+  }
+
+  // `choke`: seconds after the hit when a hand grabs the cymbal. mix.ring[note] shortens
+  // how long a cymbal rings (seconds).
   play(when, note, vel, mapId, mix, choke = 0) {
     const kit = this.s.kit;
     if (!kit) return;
@@ -112,28 +138,37 @@ export class KitPlayer {
     pan.pan.value = clamp(((voice.pan || 0) / 100) * 0.75, -1, 1);
     src.connect(gain).connect(pan).connect(this.dest);
 
+    let start = null;
+    let span = 0;
     if (key === 'hhClosed' || key === 'hhPedal') this.choke('hhOpen', when, 0.07);
     else if (key === 'hhOpen') {
       // Played open in a row, the hat keeps ringing under the next hit, which starts softer.
-      const ringing = this.active.filter((v) => v.key === 'hhOpen' && v.start < when && v.end > when);
-      const last = ringing.length ? Math.max(...ringing.map((v) => v.start)) : -1;
-      const gap = when - last;
-      if (this.wash && ringing.length && gap < 0.75) {
-        for (const v of ringing) this.fade(v, when, clamp(0.4 + 3 * gap, 0.5, 1.5));
-        const g0 = 0.28 + 0.72 * clamp((gap - 0.18) / 0.57, 0, 1);
-        if (g0 < 0.99) {
-          gain.gain.setValueAtTime(level * g0, when);
-          gain.gain.linearRampToValueAtTime(level, when + 0.11);
-        }
-      } else {
-        this.choke('hhOpen', when, 0.15);
-      }
+      start = this.blendInto('hat', ['hhOpen'], when);
+      span = BLEND_KINDS.hat.span;
+      if (start === null) this.choke('hhOpen', when, 0.15);
+    } else if (CRASH_VOICES.has(key)) {
+      start = this.blendInto('cym', [key], when);
+      span = BLEND_KINDS.cym.span;
+    }
+    if (start !== null && start < 0.99) {
+      gain.gain.setValueAtTime(level * start, when);
+      gain.gain.linearRampToValueAtTime(level, when + span);
     }
     const same = this.active.filter((v) => v.key === key && v.end > when && !v.fading);
     if (same.length >= 6) this.fade(same[0], when, 0.05);
+    const ring = Number(mix?.ring?.[note]) || 0;
+    if (ring > 0) {
+      // A shorter ring: as recorded at first, then dying away to silence at `ring` s.
+      const hold = Math.max(ring * 0.3, start !== null ? span + 0.01 : 0);
+      gain.gain.setTargetAtTime(0.0001, when + hold, Math.max(0.01, (ring - hold) / 6.9));
+    }
 
     src.start(when);
     const entry = { key, src, gain, level, start: when, end: when + buf.duration / src.playbackRate.value };
+    if (ring > 0 && when + ring + 0.05 < entry.end) {
+      entry.end = when + ring + 0.05;
+      src.stop(entry.end);
+    }
     this.active.push(entry);
     src.onended = () => {
       const i = this.active.indexOf(entry);
@@ -161,9 +196,10 @@ export class KitPlayer {
     const end = when + time;
     if (v.end <= end) return; // already going quiet sooner
     try {
-      v.gain.gain.cancelScheduledValues(when);
-      v.gain.gain.setValueAtTime(v.level, when);
-      v.gain.gain.linearRampToValueAtTime(0.0001, end);
+      const g = v.gain.gain;
+      if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(when); // keep a softened start or shorter ring
+      else { g.cancelScheduledValues(when); g.setValueAtTime(v.level, when); }
+      g.linearRampToValueAtTime(0.0001, end);
       v.src.stop(end + 0.01);
     } catch { /* source may already be stopped */ }
     v.end = end;
@@ -227,7 +263,7 @@ class PluginSegments {
   hash(idx) {
     const p = this.store.project;
     const { t0, t1 } = this.window(idx);
-    let s = `${this.version}|${this.a.variations}|${this.a.wash ? 1 : 0}|${this.a.ctx.sampleRate}|${p.sound.type}|${p.sound.type === 'sfz' ? p.sound.sfz?.path : ''}|${JSON.stringify(this.a.engineCC() || {})}|${p.sound.convertGM ? 1 : 0}|${p.drumMap}|${p.mutes.join(',')}|${this.a.routeSignature()}|`;
+    let s = `${this.version}|${this.a.variations}|${this.a.blend.hat},${this.a.blend.cym}|${this.a.ctx.sampleRate}|${p.sound.type}|${p.sound.type === 'sfz' ? p.sound.sfz?.path : ''}|${JSON.stringify(this.a.engineCC() || {})}|${p.sound.convertGM ? 1 : 0}|${p.drumMap}|${p.mutes.join(',')}|${this.a.routeSignature()}|`;
     const notes = this.store.notes;
     let count = 0;
     for (let i = lowerBound(notes, t0); i < notes.length && notes[i].t < t1; i++) {
@@ -251,7 +287,7 @@ class PluginSegments {
     const ccs = [];
     const cl = this.store.ccs;
     for (let i = Math.max(0, lowerBound(cl, t0) - 1); i < cl.length && cl[i].t < t1; i++) ccs.push([cl[i].t, cl[i].c, cl[i].v]);
-    return { notes, routes, ccs, start, preroll: start - t0, length: SEG + XF, sampleRate: this.a.ctx.sampleRate, cc: this.a.engineCC(), variations: this.a.variations, wash: this.a.wash };
+    return { notes, routes, ccs, start, preroll: start - t0, length: SEG + XF, sampleRate: this.a.ctx.sampleRate, cc: this.a.engineCC(), variations: this.a.variations, blend: this.a.blend };
   }
 
   isReady(idx) {
@@ -451,7 +487,7 @@ export class AudioEngine extends Emitter {
 
     this.sampler = new KitSampler(ctx);
     this.kit = new KitPlayer(this.sampler, ctx, this.kitBus);
-    this._wash = true;
+    this._blend = { hat: 0.8, cym: 0.8 };
     this.segments = new PluginSegments(this);
     this.moduleOut = null;
     this.backingBuffer = null;
@@ -491,10 +527,12 @@ export class AudioEngine extends Emitter {
   routeSignature() {
     const p = this.store.project;
     if (p.sound.type !== 'sfz') return '';
-    return `${this.routeVersion || 0}|${JSON.stringify(p.sound.lanes || {})}|${JSON.stringify(p.sound.takes || {})}|${JSON.stringify(p.mix.lanes || {})}`;
+    return `${this.routeVersion || 0}|${JSON.stringify(p.sound.lanes || {})}|${JSON.stringify(p.sound.takes || {})}|${JSON.stringify(p.mix.lanes || {})}|${JSON.stringify(p.mix.ring || {})}`;
   }
 
-  // Hits -> what the engine renders: [[t, note, vel, route?]] plus the route list.
+  // Hits -> what the engine renders: [[t, note, vel, route?, choke?]] plus the route list.
+  // A drum limited to some of its recordings (route.takes) gets one route per recording,
+  // and each hit is given one of them, the same way every time it's rendered.
   engineHits(list) {
     const p = this.store.project;
     const useRoutes = p.sound.type === 'sfz' && typeof this.routeFor === 'function';
@@ -503,19 +541,58 @@ export class AudioEngine extends Emitter {
     const notes = [];
     for (const n of list) {
       if (p.mutes.includes(n.n)) continue;
-      let ri = byLane.get(n.n);
-      if (ri === undefined) {
+      let lane = byLane.get(n.n);
+      if (lane === undefined) {
         const r = useRoutes ? this.routeFor(n.n) : null;
-        ri = r ? (r.silent ? -2 : routes.push(r) - 1) : -1;
-        byLane.set(n.n, ri);
+        if (!r) lane = { ri: -1 };
+        else if (r.silent) lane = { ri: -2 };
+        else if (Array.isArray(r.takes) && r.takes.length > 1) {
+          const base = { ...r };
+          delete base.takes;
+          lane = { ri: -3, base, takes: r.takes, pick: this.takePicks(n.n, r.takes), variants: new Map() };
+        } else lane = { ri: routes.push(r) - 1 };
+        byLane.set(n.n, lane);
       }
+      let ri = lane.ri;
       if (ri === -2) continue; // nothing in the current kits plays this drum
+      if (ri === -3) {
+        const take = lane.pick.get(n.id) ?? lane.takes[0];
+        ri = lane.variants.get(take);
+        if (ri === undefined) {
+          ri = routes.push({ ...lane.base, take }) - 1;
+          lane.variants.set(take, ri);
+        }
+      }
       const e = this.engineNote(n.n);
       if (n.ch > 0) notes.push([n.t, e, n.v, ri >= 0 ? ri : null, n.ch]);
       else notes.push(ri >= 0 ? [n.t, e, n.v, ri] : [n.t, e, n.v]);
     }
     return { notes, routes };
   }
+  // Which of `takes` each hit on a lane plays: in turn, or at random but never the same
+  // one three times in a row. Worked out over the whole take so it never changes
+  // between the parts that are rendered separately.
+  takePicks(lane, takes) {
+    const out = new Map();
+    const hits = this.store.notes.filter((x) => x.n === lane);
+    if (this.variations === 'cycle') {
+      hits.forEach((h, i) => out.set(h.id, takes[i % takes.length]));
+      return out;
+    }
+    let seed = (lane * 7919 + takes.reduce((a, k) => a * 31 + k + 1, 17)) >>> 0;
+    const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    let a = -1;
+    let b = -1;
+    for (const h of hits) {
+      let k = takes[Math.floor(rnd() * takes.length)];
+      for (let guard = 0; k === a && k === b && guard < 8; guard++) k = takes[Math.floor(rnd() * takes.length)];
+      out.set(h.id, k);
+      b = a;
+      a = k;
+    }
+    return out;
+  }
+
   get isPlaying() { return this.state !== 'stopped'; }
   get isRecording() { return this.state === 'recording'; }
 
@@ -629,9 +706,13 @@ export class AudioEngine extends Emitter {
     this.emit('state', this.state);
   }
 
-  // Open hi-hats played in a row ring into each other (sample kits and built-in kits).
-  get wash() { return this._wash; }
-  set wash(on) { this._wash = !!on; this.kit.wash = !!on; }
+  // How much open hi-hats and crashes played in a row ring into each other, 0..1
+  // (sample kits and built-in kits).
+  get blend() { return this._blend; }
+  set blend(b) {
+    this._blend = { hat: clamp(Number(b?.hat) || 0, 0, 1), cym: clamp(Number(b?.cym) || 0, 0, 1) };
+    this.kit.blend = this._blend;
+  }
 
   playsPlugin() {
     return this.usesEngine && this.segments.enabled && !(this.state === 'recording' && this.recordMode === 'replace');
@@ -815,7 +896,7 @@ export class AudioEngine extends Emitter {
         : this.engineHits([{ t: 0.0, n: note, v: vel }]);
       const res = await api.render({
         notes: hit.notes, routes: hit.routes, ccs: [], start: 0, preroll: 0, length: 2.2,
-        sampleRate: this.ctx.sampleRate, cc: this.engineCC(), variations: this.variations, wash: this.wash,
+        sampleRate: this.ctx.sampleRate, cc: this.engineCC(), variations: this.variations, blend: this.blend,
       });
       if (token === this._auditionToken || !this._auditionNext) {
         const buf = this.ctx.createBuffer(2, res.frames, res.sampleRate || this.ctx.sampleRate);

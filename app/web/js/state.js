@@ -15,6 +15,7 @@ export const DEFAULT_MIX = {
   master: 0.9, drums: 0.9, backing: 0.75, click: 0.55,
   kit: { kick: 1, snare: 1, tom: 1, hat: 1, cym: 1, ride: 1, perc: 1 },
   lanes: {}, // per-drum volume: { [note]: 0..1.5 }
+  ring: {}, // how long a cymbal rings: { [note]: seconds }, none = as recorded
 };
 
 export function newTake(name) {
@@ -178,15 +179,21 @@ export function retime(p, before) {
 // ---- store ----------------------------------------------------------------
 const UNDO_LIMIT = 120;
 
-// A hit is [time, note, velocity] plus, for a choked cymbal, the seconds until the choke.
+// Marks a hit can carry (n.mk). Humanize leaves marked and choked hits alone.
+export const MARKS = ['cresc', 'dim', 'acc', 'ghost'];
+
+// A hit is [time, note, velocity], then for a choked cymbal the seconds until the
+// choke (0 if none), then its mark if it has one.
 function encodeTake(t) {
+  const r5 = (x) => Math.round(x * 100000) / 100000;
   return {
     id: t.id,
     name: t.name,
     created: t.created,
-    notes: t.notes.map((n) => (n.ch > 0
-      ? [Math.round(n.t * 100000) / 100000, n.n, n.v, Math.round(n.ch * 100000) / 100000]
-      : [Math.round(n.t * 100000) / 100000, n.n, n.v])),
+    notes: t.notes.map((n) => {
+      if (n.mk) return [r5(n.t), n.n, n.v, n.ch > 0 ? r5(n.ch) : 0, n.mk];
+      return n.ch > 0 ? [r5(n.t), n.n, n.v, r5(n.ch)] : [r5(n.t), n.n, n.v];
+    }),
     ccs: (t.ccs || []).map((c) => [Math.round(c.t * 100000) / 100000, c.c, c.v]),
   };
 }
@@ -200,6 +207,8 @@ function decodeTake(t) {
       const hit = Array.isArray(n) ? { id: uid(), t: n[0], n: n[1], v: n[2] } : { id: uid(), t: n.t, n: n.n, v: n.v };
       const ch = Array.isArray(n) ? n[3] : n.ch;
       if (ch > 0) hit.ch = ch;
+      const mk = Array.isArray(n) ? n[4] : n.mk;
+      if (MARKS.includes(mk)) hit.mk = mk;
       return hit;
     }),
     ccs: (t.ccs || []).map((c) => (Array.isArray(c) ? { t: c[0], c: c[1], v: c[2] } : { t: c.t, c: c.c, v: c.v })),
@@ -341,6 +350,7 @@ export class Store extends Emitter {
       ...(data.mix || {}),
       kit: { ...base.mix.kit, ...((data.mix || {}).kit || {}) },
       lanes: { ...((data.mix || {}).lanes || {}) },
+      ring: { ...((data.mix || {}).ring || {}) },
     };
     p.loop = { ...base.loop, ...(data.loop || {}) };
     p.sig = Array.isArray(data.sig) ? data.sig : base.sig;
