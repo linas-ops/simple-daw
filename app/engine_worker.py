@@ -290,6 +290,17 @@ class Host:
         return keys
 
     @staticmethod
+    def _pedal_keys(opts: dict) -> set:
+        """The keys the hi-hat pedal (General MIDI 44) plays in this kit."""
+        if opts.get("role") == "percussion":
+            return set()
+        note_map = {int(k): int(v) for k, v in (opts.get("noteMap") or {}).items()}
+        keys = {note_map.get(44, 44)}
+        for _lo, _hi, target in ((opts.get("hihat") or {}).get("rules") or {}).get("44", []):
+            keys.add(int(target))
+        return keys
+
+    @staticmethod
     def _crash_keys(opts: dict) -> set:
         """The keys that play this kit's crashes, chinas and splashes (General MIDI 49, 57,
         55, 52 after its note map). The Percussion kit has none."""
@@ -312,12 +323,13 @@ class Host:
         return {"hat": 0.8 if blend is not False else 0.0, "cym": 0.0}
 
     def render_kit(self, notes, ccs, start: float, preroll: float, length: float, sample_rate: int,
-                   cc_overrides=None, routes=None, variations="cycle", blend=None):
+                   cc_overrides=None, routes=None, variations="cycle", blend=None, pedal_stop=True):
         """Render hits with the main kit. A hit can name a route (its 4th item): which kit
         plays it, which key, whether that kit's note map applies, a level, one recording
         (take) and a shorter ring (seconds). Its 5th item is a choke: seconds until the
         cymbal is grabbed. blend: how much repeated open hi-hats and crashes ring into
-        each other, {"hat": 0..1, "cym": 0..1}."""
+        each other, {"hat": 0..1, "cym": 0..1}. pedal_stop: the hi-hat pedal stops the
+        open hi-hat's ring at once."""
         import numpy as np
         import sfz
 
@@ -412,7 +424,9 @@ class Host:
             amounts = self._blend_amounts(blend)
             audio = kit.render(events, preroll + length, sr, controls or None, seed=seed, variations=variations,
                                blend={"hat": {"keys": sorted(self._wash_keys(opts)), "amount": amounts["hat"]},
-                                      "cym": {"keys": sorted(self._crash_keys(opts)), "amount": amounts["cym"]}})
+                                      "cym": {"keys": sorted(self._crash_keys(opts)), "amount": amounts["cym"]}},
+                               damp={"pedal": sorted(self._pedal_keys(opts)), "open": sorted(self._wash_keys(opts)), "fade": 0.06}
+                               if pedal_stop else None)
             audio *= self._kit_gain(entry, sr)
             part = audio[:, skip: skip + frames]
             out[:, :part.shape[1]] += part
@@ -420,11 +434,11 @@ class Host:
 
     # -- rendering ----------------------------------------------------------
     def render(self, notes, ccs, start: float, preroll: float, length: float, sample_rate: int, cc_overrides=None, routes=None,
-               variations="cycle", blend=None):
+               variations="cycle", blend=None, pedal_stop=True):
         import numpy as np
 
         if self.mode == "sfz":
-            return self.render_kit(notes, ccs, start, preroll, length, sample_rate, cc_overrides, routes, variations, blend)
+            return self.render_kit(notes, ccs, start, preroll, length, sample_rate, cc_overrides, routes, variations, blend, pedal_stop)
         self._need_plugin()
         if int(sample_rate) != self.sample_rate:
             state = self.get_state()
@@ -509,6 +523,7 @@ def worker_main(conn) -> None:
                     msg.get("routes"),
                     msg.get("variations") or "cycle",
                     msg.get("blend") if isinstance(msg.get("blend"), dict) else msg.get("wash", True) is not False,
+                    msg.get("pedalStop", True) is not False,
                 )
                 reply = {
                     "ok": True,

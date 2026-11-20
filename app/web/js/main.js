@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS = {
   lastProject: null,
   myKits: [], // kits you put together: a main sample kit plus drums borrowed from others
   variations: 'random', // sample kits: 'random' or 'cycle' (each drum's recordings take turns)
+  hihatPedalStop: true, // the hi-hat pedal stops the open hi-hat's ring at once
   // blendHat / blendCym (0-100): how much open hi-hats and crashes played in a row ring
   // into each other. Not set: 80 (the hi-hat 0 if the older "Separate" switch was chosen).
 };
@@ -134,6 +135,7 @@ class App {
     this.audio.clickOn = !!s.click;
     this.audio.variations = s.variations === 'cycle' ? 'cycle' : 'random';
     this.audio.blend = { hat: this.blendAmount('blendHat'), cym: this.blendAmount('blendCym') };
+    this.audio.pedalStop = s.hihatPedalStop !== false;
     this.timeline.snap = !!s.snap;
     this.timeline.grid = GRIDS[s.grid] ? s.grid : '16';
     $('#grid').value = this.timeline.grid;
@@ -784,6 +786,7 @@ class App {
     else delete p.mix.ring[note];
     this.audio.routeVersion = (this.audio.routeVersion || 0) + 1;
     this.store.touch('mix');
+    this.timeline.rebuildLanes(true);
   }
 
   // How much open hi-hats (blendHat) or crashes (blendCym) ring into each other, 0..1.
@@ -832,6 +835,8 @@ class App {
   // Name, source and status of a lane, for the lane heads and menus.
   laneDisplay(laneNote) {
     const out = this.laneDisplayBase(laneNote);
+    const type = this.store.project.sound.type;
+    const ring = (type === 'sfz' || type === 'kit') ? this.laneRing(laneNote) : 0;
     const takes = this.laneTakes(laneNote);
     if (takes) {
       out.take = takes;
@@ -839,6 +844,10 @@ class App {
       out.tip = takes.length === 1
         ? `${out.label} always plays variation ${takes[0]} of ${out.sound || out.label}. Right-click to change it.`
         : `${out.label} plays variations ${listText(takes)} of ${out.sound || out.label}, ${how}. Right-click to change it.`;
+    }
+    if (ring) {
+      out.ring = ring;
+      out.tip = `${(out.tip || `${out.label} (note ${laneNote}).`).replace(/ Right-click to change it\.$/, '')} Rings for ${ring} s instead of as recorded. Right-click to change it.`;
     }
     return out;
   }
@@ -2827,6 +2836,7 @@ class App {
         cc: this.audio.engineCC(),
         variations: this.audio.variations,
         blend: this.audio.blend,
+        pedalStop: this.audio.pedalStop,
       });
       onProgress?.(0.45);
     } else if (!this.audio.sampler.kit) {
@@ -2892,6 +2902,13 @@ class App {
       });
       blendList.append(el('div', { class: 'slider-row' }, el('label', {}, label), input, val));
     }
+    const pedalStop = el('input', { type: 'checkbox', checked: s.hihatPedalStop !== false });
+    pedalStop.addEventListener('change', () => {
+      this.saveSetting({ hihatPedalStop: pedalStop.checked });
+      toast(pedalStop.checked ? 'The hi-hat pedal now stops the open hi-hat. You’ll hear it on the next playback.' : 'The open hi-hat now fades the way the kit decides when you press the pedal.');
+    });
+    blendList.append(el('label', { class: 'check' }, pedalStop, el('span', {}, 'Hi-hat pedal stops the open hi-hat',
+      el('span', { class: 'mi-sub' }, 'Closing the hi-hat with the pedal cuts its ring at once, like a real one. Off: the kit decides (some let it ring on for a moment). Built-in kits always stop it.'))));
 
     const monitor = el('input', { type: 'checkbox', checked: s.monitor });
     monitor.addEventListener('change', () => this.saveSetting({ monitor: monitor.checked }));

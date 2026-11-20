@@ -31,6 +31,8 @@ Realistic kits (recommended)
   it still rings, the ring carries on under the new hit and the new hit
   starts softer, so fast hits sound like one wash. One slider for the
   open hi-hat, one for crashes (0% = every hit starts fresh).
+- Settings > Hi-hat pedal stops the open hi-hat (on by default): closing
+  the hi-hat with the pedal cuts the open ring at once.
 - Sample kits are heard on playback, not while you record.
 
 Percussion
@@ -55,7 +57,8 @@ Each drum: right-click its name (or click its ... button)
   as set in Settings. The drum name shows them (e.g. v2,4).
 - Volume: make this drum louder or softer (also in Mix).
 - Ring (cymbals): how long the cymbal sounds. Natural is as recorded;
-  shorter values fade it out sooner (down to 0.3 s).
+  shorter values fade it out sooner (down to 0.3 s). The drum name
+  then shows the time (e.g. 1s).
 
 Dynamics: select hits, right-click > Dynamics
 - Crescendo / Diminuendo: louder (or softer) from the first selected

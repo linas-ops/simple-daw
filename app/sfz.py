@@ -732,7 +732,7 @@ class SfzKit:
         return gain * min(1.0, 1.0 - pan), gain * min(1.0, 1.0 + pan)
 
     def render(self, events, duration: float, sr: int, cc_overrides: dict | None = None, seed: int | None = None,
-               vary: bool = True, variations: str = "cycle", wash=None, blend=None):
+               vary: bool = True, variations: str = "cycle", wash=None, blend=None, damp=None):
         """events: sorted list of (seconds, 'note', note, vel[, gain[, take[, ring]]]),
         (seconds, 'cc', number, value127) or (seconds, 'choke', note, 0).
 
@@ -745,6 +745,9 @@ class SfzKit:
         under the new hit and the new hit starts softer, the way an open hi-hat played in
         eighths sounds like one continuous wash. amount 0 (or no blend) keeps every hit
         separate. wash (a list of keys) is the older form: the hi-hat at 0.8.
+
+        damp: {"pedal": [...], "open": [...], "fade": seconds}. A hit on a pedal key (the
+        hi-hat closed with the foot) stops everything the open keys still play, within fade.
 
         take (0-based) makes the hit always play that one recording of the sound
         (see take_count), with no random tuning or level.
@@ -778,6 +781,9 @@ class SfzKit:
                 for k in spec.get("keys") or ():
                     blend_of[int(k)] = (kind, amount)
         blend_prev: dict = {}  # "hat" or ("cym", key) -> (frame, voices) of its last hit
+        damp_pedal = {int(k) for k in ((damp or {}).get("pedal") or ())}
+        damp_open = [int(k) + self.note_offset for k in ((damp or {}).get("open") or ())]
+        damp_fade = max(0.005, float((damp or {}).get("fade") or 0.06))
 
         def stop_voice(v, frame, fade=None):
             """Start fading a voice out. A later stop can only make it end sooner."""
@@ -841,6 +847,12 @@ class SfzKit:
                     if not (r.lorand <= rnd < r.hirand or (r.hirand >= 1.0 and rnd >= r.lorand)):
                         continue
                     triggered.append(r)
+            if int(a) in damp_pedal:
+                # The pedal closes the hi-hat: whatever the open hat still rings stops now.
+                for k in damp_open:
+                    for v in by_key.get(k, ()):
+                        if v["start"] <= frame:
+                            stop_voice(v, frame, damp_fade * sr)
             if not triggered:
                 continue
             blending = blend_of.get(int(a))

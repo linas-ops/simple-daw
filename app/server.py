@@ -30,7 +30,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_NAME = "Simple DAW"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 HOST = "127.0.0.1"
 DEFAULT_PORT = int(os.environ.get("SIMPLE_DAW_PORT", "47321"))
 IS_WINDOWS = os.name == "nt"
@@ -1173,6 +1173,7 @@ class Handler(BaseHTTPRequestHandler):
                 "variations": "random" if data.get("variations") == "random" else "cycle",
                 "wash": data.get("wash", True) is not False,
                 "blend": data.get("blend") if isinstance(data.get("blend"), dict) else None,
+                "pedalStop": data.get("pedalStop", True) is not False,
             }, timeout=600)
             self._send(200, reply["pcm"], "application/octet-stream", {
                 "X-Frames": str(reply["frames"]),
