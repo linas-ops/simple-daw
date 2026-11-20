@@ -154,6 +154,8 @@ export const ICONS = {
   module: '<rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M7 10h4M7 14h2"/><circle cx="16" cy="12" r="2.2"/>',
   refresh: '<path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4v4h-4"/>',
   power: '<path d="M12 4v8"/><path d="M7.5 7a7 7 0 1 0 9 0"/>',
+  choke: '<ellipse cx="10" cy="12.5" rx="7" ry="2.2"/><path d="M10 10.3V6.5"/><path d="M20.5 7v11"/>',
+  tempo: '<path d="M6.5 19.5h7l-2.3-14h-2.4z"/><path d="M10 15l3.6-6.3"/><path d="M16 12h5"/><path d="M18.8 9.5l2.5 2.5-2.5 2.5"/>',
   midi: '<circle cx="12" cy="12" r="8.5"/><circle cx="8" cy="12" r=".8" fill="currentColor"/><circle cx="16" cy="12" r=".8" fill="currentColor"/><circle cx="9.2" cy="8.8" r=".8" fill="currentColor"/><circle cx="14.8" cy="8.8" r=".8" fill="currentColor"/><circle cx="12" cy="7.6" r=".8" fill="currentColor"/>',
 };
 

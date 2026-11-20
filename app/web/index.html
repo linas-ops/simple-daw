@@ -51,10 +51,11 @@
 
       <div class="tempo-group">
         <label class="field-tempo" data-tip="Tempo in beats per minute">
-          <input id="tempo" type="number" min="30" max="300" step="1" value="120" aria-label="Tempo">
+          <input id="tempo" type="number" min="30" max="300" step="any" value="120" aria-label="Tempo">
           <span class="unit">BPM</span>
         </label>
         <button class="btn btn-small" id="btn-tap" data-tip="Tap 4 times or more to set the tempo" data-key="T">Tap</button>
+        <button class="btn btn-small btn-icon tempo-map-btn" id="btn-tempo-map" data-tip="Tempo changes: play faster or slower from a bar" aria-label="Tempo changes"><span data-icon="tempo"></span><span class="tempo-map-count" id="tempo-map-count"></span></button>
         <select id="timesig" class="select-compact" data-tip="Time signature" aria-label="Time signature">
           <option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option>
           <option value="5/4">5/4</option><option value="6/8">6/8</option><option value="7/8">7/8</option>

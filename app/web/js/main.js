@@ -2,7 +2,10 @@
 
 import { $, el, icon, setIcon, hydrateIcons, clamp, debounce, fmtTime, fmtDuration, fmtDate, isTyping, uid } from './util.js';
 import { api } from './api.js';
-import { Store, newProject, newTake, GRIDS, barDur, beatDur, barBeatAt, quarterBpm, timeOfBar } from './state.js';
+import {
+  Store, newProject, newTake, GRIDS, barBeatAt, quarterBpm, timeOfBar, beatAt, timeAtBeat, tempoSegments, bpmAt,
+  retime, normTempoChanges, hasTempoChanges, beatOfBar,
+} from './state.js';
 import { AudioEngine, PRE } from './audio.js';
 import { MidiIO } from './midi.js';
 import { Timeline } from './timeline.js';
@@ -30,6 +33,7 @@ const DEFAULT_SETTINGS = {
   lastProject: null,
   myKits: [], // kits you put together: a main sample kit plus drums borrowed from others
   variations: 'random', // sample kits: 'random' or 'cycle' (each drum's recordings take turns)
+  hihatWash: true, // open hi-hats played in a row ring into each other
 };
 
 class App {
@@ -118,6 +122,7 @@ class App {
     const s = this.settings;
     this.audio.clickOn = !!s.click;
     this.audio.variations = s.variations === 'cycle' ? 'cycle' : 'random';
+    this.audio.wash = s.hihatWash !== false;
     this.timeline.snap = !!s.snap;
     this.timeline.grid = GRIDS[s.grid] ? s.grid : '16';
     $('#grid').value = this.timeline.grid;
@@ -1337,6 +1342,7 @@ class App {
     $('#rec-mode-add').addEventListener('click', () => this.saveSetting({ recordMode: 'add' }));
     $('#btn-loop').addEventListener('click', () => this.toggleLoop());
     $('#btn-tap').addEventListener('click', () => this.tapTempo());
+    $('#btn-tempo-map').addEventListener('click', () => this.openTempoChanges());
     const tempo = $('#tempo');
     tempo.addEventListener('change', () => this.changeTempo(Number(tempo.value)));
     tempo.addEventListener('keydown', (e) => { if (e.key === 'Enter') tempo.blur(); });
@@ -1389,7 +1395,8 @@ class App {
     this.recBuffer = { notes: [], ccs: [], from, mode };
     this.timeline.liveNotes = this.recBuffer.notes;
     this.timeline.clearSelection();
-    const countIn = (this.settings.countIn || 0) * barDur(p);
+    const bars = this.settings.countIn || 0;
+    const countIn = bars ? from - timeAtBeat(p, beatAt(p, from) - bars * p.sig[0]) : 0;
     this.timeline.reveal(from);
     await this.audio.play(from, { record: true, countIn, mode });
     this.updateEmptyState();
@@ -1417,7 +1424,7 @@ class App {
         ? cur.ccs
         : cur.ccs.filter((c) => c.t < buf.from - 0.005 || c.t > endAt);
       const take = newTake(this.nextTakeName());
-      take.notes = keep.map((n) => ({ id: uid(), t: n.t, n: n.n, v: n.v })).concat(buf.notes.map((n) => ({ ...n, id: uid() })));
+      take.notes = keep.map((n) => ({ ...n, id: uid() })).concat(buf.notes.map((n) => ({ ...n, id: uid() })));
       take.ccs = keepCc.map((c) => ({ ...c })).concat(buf.ccs);
       p.takes.push(take);
       p.activeTake = take.id;
@@ -1448,15 +1455,15 @@ class App {
     if (p.loop.on) { this.setLoop(false); return; }
     if (!(p.loop.end > p.loop.start)) {
       const sel = this.timeline.selectedNotes();
-      const bar = barDur(p);
       let start;
       let end;
       if (sel.length) {
         start = timeOfBar(p, barBeatAt(p, Math.min(...sel.map((n) => n.t))).bar);
         end = timeOfBar(p, barBeatAt(p, Math.max(...sel.map((n) => n.t))).bar + 1);
       } else {
-        start = timeOfBar(p, barBeatAt(p, this.audio.position).bar);
-        end = start + 4 * bar;
+        const bar = barBeatAt(p, this.audio.position).bar;
+        start = timeOfBar(p, bar);
+        end = timeOfBar(p, bar + 4);
       }
       this.store.edit('Set loop', () => { p.loop = { on: true, start: Math.max(0, start), end }; });
       toast('Looping 4 bars. Drag on the ruler to change the part that loops.');
@@ -1496,39 +1503,227 @@ class App {
     }
   }
 
+  // ---- tempo -------------------------------------------------------------
+  // The part of the song (between tempo changes) that a time falls in.
+  sectionAt(t) {
+    const segs = tempoSegments(this.store.project);
+    let i = 0;
+    for (let k = 1; k < segs.length; k++) if (segs[k].t <= t + 1e-6) i = k;
+    return { index: i, seg: segs[i], next: segs[i + 1] || null };
+  }
+
+  barOfBeat(b) {
+    return Math.floor(b / this.store.project.sig[0] + 1e-9) + 1;
+  }
+
+  // The tempo field shows the tempo where the playhead is.
+  syncTempoField() {
+    const p = this.store.project;
+    const field = $('#tempo');
+    const { seg, next } = this.sectionAt(Math.max(0, this.audio.position));
+    if (document.activeElement !== field) field.value = String(Math.round(seg.bpm * 100) / 100);
+    const changes = (p.tempoChanges || []).length;
+    const label = field.closest('[data-tip]');
+    if (label) {
+      label.dataset.tip = !changes ? 'Tempo in beats per minute'
+        : `Tempo here: bar ${this.barOfBeat(seg.beat)}${next ? ` to ${this.barOfBeat(next.beat) - 1}` : ' to the end'}. Typing a new one changes this part.`;
+    }
+    $('#btn-tempo-map').classList.toggle('has-changes', changes > 0);
+    $('#tempo-map-count').textContent = changes ? String(changes) : '';
+    this.shownTempo = seg.bpm;
+  }
+
+  // Ask whether hits from a time on should keep their timing or follow the new tempo.
+  // Returns 'keep', 'stretch', or null to cancel. No question when nothing would move.
+  async askRetime(from, title, faster, keepFirst) {
+    const hits = this.store.project.takes.some((tk) => tk.notes.some((n) => n.t >= from - 1e-6));
+    if (!hits) return 'keep';
+    const where = from > (this.store.project.gridOrigin || 0) + 0.01 ? ` from bar ${barBeatAt(this.store.project, from).bar}` : '';
+    return choiceBox({
+      title,
+      message: `Should your recorded hits${where} stay where they are, or play ${faster ? 'faster' : 'slower'} to follow the new tempo?`,
+      choices: [
+        { label: 'Cancel', value: null, ghost: true },
+        { label: 'Keep my playing as it is', value: 'keep', primary: keepFirst },
+        { label: faster ? 'Speed up my playing' : 'Slow down my playing', value: 'stretch', primary: !keepFirst },
+      ],
+    });
+  }
+
+  // Change the tempo map in one undoable step. `stretch` keeps hits on their beats.
+  applyTempo(label, mutate, stretch) {
+    this.store.edit(label, (proj) => {
+      const before = tempoSegments(proj).map((x) => ({ ...x }));
+      mutate(proj);
+      // A change to the tempo that's already playing does nothing, so it goes.
+      let prev = proj.tempo;
+      proj.tempoChanges = normTempoChanges(proj.tempoChanges).filter((c) => {
+        if (Math.abs(c.bpm - prev) < 0.005) return false;
+        prev = c.bpm;
+        return true;
+      });
+      if (stretch) retime(proj, before);
+    });
+    this.syncTempoField();
+    this.timeline.dirty = true;
+  }
+
+  // Typing a tempo (or tapping) changes the part of the song the playhead is in.
   async changeTempo(bpm) {
     const p = this.store.project;
-    if (!Number.isFinite(bpm)) { $('#tempo').value = p.tempo; return; }
+    const { index, seg } = this.sectionAt(Math.max(0, this.audio.position));
+    if (!Number.isFinite(bpm)) { this.syncTempoField(); return; }
     bpm = clamp(Math.round(bpm), 30, 300);
     $('#tempo').value = bpm;
-    if (bpm === p.tempo) return;
-    let stretch = false;
-    if (this.store.notes.length) {
-      const choice = await choiceBox({
-        title: `Change tempo to ${bpm} BPM`,
-        message: 'Should your recorded hits stay where they are, or play faster or slower to follow the new tempo?',
-        choices: [
-          { label: 'Cancel', value: null, ghost: true },
-          { label: 'Keep my playing as it is', value: 'keep' },
-          { label: bpm > p.tempo ? 'Speed up my playing' : 'Slow down my playing', value: 'stretch', primary: true },
-        ],
-      });
-      if (!choice) { $('#tempo').value = p.tempo; return; }
-      stretch = choice === 'stretch';
+    if (Math.abs(bpm - seg.bpm) < 0.005) return;
+    const whole = !hasTempoChanges(p);
+    const title = whole ? `Change tempo to ${bpm} BPM` : `${bpm} BPM from bar ${this.barOfBeat(seg.beat)}`;
+    const choice = await this.askRetime(index === 0 ? -Infinity : seg.t, title, bpm > seg.bpm, false);
+    if (!choice) { this.syncTempoField(); return; }
+    this.applyTempo('Change tempo', (proj) => {
+      if (index === 0) { proj.tempo = bpm; return; }
+      const c = proj.tempoChanges.find((x) => Math.abs(x.beat - seg.beat) < 1e-6);
+      if (c) c.bpm = bpm;
+    }, choice === 'stretch');
+  }
+
+  // Add (or change) a tempo change at the start of a bar.
+  async setTempoFromBar(bar, bpm) {
+    const p = this.store.project;
+    bar = Math.max(1, Math.round(bar));
+    bpm = clamp(Math.round(bpm), 30, 300);
+    if (bar === 1) {
+      const choice = await this.askRetime(-Infinity, `Start the song at ${bpm} BPM`, bpm > p.tempo, false);
+      if (!choice) return false;
+      this.applyTempo('Change tempo', (proj) => { proj.tempo = bpm; }, choice === 'stretch');
+      return true;
     }
-    const old = p.tempo;
-    this.store.edit('Change tempo', (proj) => {
-      if (stretch) {
-        const r = old / bpm;
-        const o = proj.gridOrigin || 0;
-        for (const take of proj.takes) {
-          for (const n of take.notes) n.t = Math.max(0, o + (n.t - o) * r);
-          for (const c of take.ccs) c.t = Math.max(0, o + (c.t - o) * r);
-        }
-        if (proj.loop.end > proj.loop.start) proj.loop = { ...proj.loop, start: o + (proj.loop.start - o) * r, end: o + (proj.loop.end - o) * r };
+    const beat = beatOfBar(p, bar);
+    const at = timeAtBeat(p, beat);
+    const before = bpmAt(p, at);
+    if (Math.abs(before - bpm) < 0.005) return true;
+    const choice = await this.askRetime(at, `${bpm} BPM from bar ${bar}`, bpm > before, true);
+    if (!choice) return false;
+    this.applyTempo('Change tempo from a bar', (proj) => {
+      proj.tempoChanges = [...(proj.tempoChanges || []).filter((c) => Math.abs(c.beat - beat) > 1e-6), { beat, bpm }];
+    }, choice === 'stretch');
+    return true;
+  }
+
+  async removeTempoChange(beat) {
+    const p = this.store.project;
+    const at = timeAtBeat(p, beat);
+    const now = bpmAt(p, at);
+    const prev = bpmAt(p, at - 1e-4);
+    const choice = await this.askRetime(at, `Remove the tempo change at bar ${this.barOfBeat(beat)}`, prev > now, true);
+    if (!choice) return false;
+    this.applyTempo('Remove tempo change', (proj) => {
+      proj.tempoChanges = (proj.tempoChanges || []).filter((c) => Math.abs(c.beat - beat) > 1e-6);
+    }, choice === 'stretch');
+    return true;
+  }
+
+  async moveTempoChange(beat, bar) {
+    const p = this.store.project;
+    const c = (p.tempoChanges || []).find((x) => Math.abs(x.beat - beat) < 1e-6);
+    if (!c) return false;
+    const to = beatOfBar(p, Math.max(2, Math.round(bar)));
+    if (Math.abs(to - beat) < 1e-6) return true;
+    const choice = await this.askRetime(timeAtBeat(p, Math.min(beat, to)), `Tempo change from bar ${this.barOfBeat(to)}`, true, true);
+    if (!choice) return false;
+    this.applyTempo('Move tempo change', (proj) => {
+      proj.tempoChanges = [...proj.tempoChanges.filter((x) => Math.abs(x.beat - beat) > 1e-6 && Math.abs(x.beat - to) > 1e-6), { beat: to, bpm: c.bpm }];
+    }, choice === 'stretch');
+    return true;
+  }
+
+  // The list of tempo changes, with a row to add one (prefilled with `addBar`).
+  openTempoChanges(anchor = $('#btn-tempo-map'), focusBeat = null, addBar = null) {
+    const p = this.store.project;
+    popover(anchor, (close) => {
+      const wrap = el('div', { class: 'tempo-pop' });
+      wrap.append(el('h3', {}, 'Tempo'));
+      const reopen = () => { close(); this.openTempoChanges(anchor, focusBeat); };
+      const bpmInput = (value, onSet) => {
+        const input = el('input', { type: 'number', class: 'text-input', min: 30, max: 300, step: 'any', value: Math.round(value * 100) / 100, 'aria-label': 'Tempo in BPM' });
+        input.addEventListener('change', async () => { if (await onSet(Number(input.value))) reopen(); else input.value = Math.round(value * 100) / 100; });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+        return input;
+      };
+      const list = el('div', { class: 'tempo-list' });
+      list.append(el('div', { class: 'tempo-row' },
+        el('span', { class: 'tempo-bar' }, 'Start'),
+        bpmInput(p.tempo, (v) => this.setTempoFromBar(1, v)),
+        el('span', { class: 'unit' }, 'BPM'),
+        el('span', {})));
+      for (const c of p.tempoChanges || []) {
+        const barNo = this.barOfBeat(c.beat);
+        const onBar = Math.abs(c.beat - beatOfBar(p, barNo)) < 1e-6;
+        const barField = el('input', { type: 'number', class: 'text-input', min: 2, step: 1, value: barNo, 'aria-label': 'From bar', disabled: !onBar });
+        barField.addEventListener('change', async () => { if (await this.moveTempoChange(c.beat, Number(barField.value))) reopen(); else barField.value = barNo; });
+        barField.addEventListener('keydown', (e) => { if (e.key === 'Enter') barField.blur(); });
+        const del = el('button', { class: 'btn btn-ghost btn-icon btn-small', 'aria-label': `Remove the tempo change at bar ${barNo}`, 'data-tip': 'Remove this tempo change' }, icon('trash'));
+        del.addEventListener('click', async () => { if (await this.removeTempoChange(c.beat)) reopen(); });
+        const row = el('div', { class: `tempo-row${focusBeat !== null && Math.abs(focusBeat - c.beat) < 1e-6 ? ' is-focus' : ''}` },
+          el('label', { class: 'tempo-bar' }, el('span', {}, 'Bar'), barField),
+          bpmInput(c.bpm, (v) => this.setTempoFromBar(barNo, v)),
+          el('span', { class: 'unit' }, 'BPM'),
+          del);
+        list.append(row);
       }
-      proj.tempo = bpm;
-    });
+      wrap.append(list);
+      wrap.append(el('div', { class: 'section-title' }, 'Change the tempo from a bar'));
+      const posBar = barBeatAt(p, Math.max(0, this.audio.position)).bar;
+      const startBar = addBar ?? Math.max(2, posBar + (barBeatAt(p, Math.max(0, this.audio.position)).beat > 1 ? 1 : 0));
+      const addBarField = el('input', { type: 'number', class: 'text-input', min: 2, step: 1, value: startBar, 'aria-label': 'From bar' });
+      const addBpm = el('input', { type: 'number', class: 'text-input', min: 30, max: 300, step: 1, value: Math.round(bpmAt(p, timeOfBar(p, startBar))), 'aria-label': 'New tempo in BPM' });
+      addBarField.addEventListener('input', () => { addBpm.value = Math.round(bpmAt(p, timeOfBar(p, Math.max(2, Number(addBarField.value) || 2)))); });
+      const add = el('button', { class: 'btn btn-small btn-primary' }, icon('plus'), 'Add');
+      const doAdd = async () => {
+        const bar = Math.max(2, Math.round(Number(addBarField.value) || 2));
+        const bpm = Number(addBpm.value);
+        if (!Number.isFinite(bpm) || bpm < 30 || bpm > 300) { toast('Pick a tempo between 30 and 300 BPM.', { error: true }); return; }
+        if (Math.abs(bpmAt(p, timeOfBar(p, bar)) - bpm) < 0.5) { toast(`Bar ${bar} already plays at ${Math.round(bpm)} BPM. Type the new tempo first.`, { error: true }); return; }
+        if (await this.setTempoFromBar(bar, bpm)) { close(); this.openTempoChanges(anchor, beatOfBar(p, bar)); }
+      };
+      add.addEventListener('click', doAdd);
+      addBpm.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+      wrap.append(el('div', { class: 'tempo-row tempo-add' },
+        el('label', { class: 'tempo-bar' }, el('span', {}, 'Bar'), addBarField),
+        addBpm,
+        el('span', { class: 'unit' }, 'BPM'),
+        add));
+      wrap.append(el('p', { class: 'note' }, 'The click, the grid and the bar numbers follow these changes. You can also right-click the ruler at a bar.'));
+      setTimeout(() => (addBar ? addBpm : null)?.select(), 30);
+      return wrap;
+    }, { width: 300 });
+  }
+
+  openRulerMenu(e, t) {
+    const p = this.store.project;
+    const at = { x: e.clientX, y: e.clientY };
+    const bb = barBeatAt(p, Math.max(0, t));
+    // The bar under the pointer, or the next one when it's past the middle.
+    const half = timeAtBeat(p, beatOfBar(p, bb.bar) + p.sig[0] / 2);
+    const bar = Math.max(1, t > half ? bb.bar + 1 : bb.bar);
+    const existing = (p.tempoChanges || []).find((c) => Math.abs(c.beat - beatOfBar(p, bar)) < 1e-6);
+    popover(at, (close) => {
+      const wrap = el('div', {});
+      const item = (o) => wrap.append(menuItem({ ...o, onClick: () => { close(); o.onClick(); } }));
+      if (bar > 1) {
+        item({
+          label: existing ? `Tempo from bar ${bar}: ${Math.round(existing.bpm * 100) / 100} BPM…` : `Change the tempo from bar ${bar}…`,
+          sub: existing ? 'Change or remove it' : 'Play faster or slower from here on',
+          iconName: 'tempo',
+          onClick: () => this.openTempoChanges(at, existing ? existing.beat : null, existing ? null : bar),
+        });
+        if (existing) item({ label: `Remove the tempo change at bar ${bar}`, iconName: 'trash', onClick: () => this.removeTempoChange(existing.beat) });
+      } else {
+        item({ label: 'Song tempo…', sub: 'And tempo changes later in the song', iconName: 'tempo', onClick: () => this.openTempoChanges(at) });
+      }
+      item({ label: `Move the playhead to bar ${bar}`, iconName: 'cursor', onClick: () => { this.audio.seek(Math.max(0, timeOfBar(p, bar))); } });
+      return wrap;
+    }, { width: 270 });
   }
 
   // =====================================================================
@@ -1541,11 +1736,79 @@ class App {
       this.updateSoundButton();
     });
     this.midi.on('hit', (h) => this.onHit(h));
+    this.midi.on('choke', (c) => this.onChoke(c));
     this.midi.on('cc', (c) => {
       if (c.cc !== 4 || !this.recBuffer || !this.audio.isRecording) return;
       const t = this.audio.posForPerfTime(c.time) - this.settings.latencyMs / 1000;
       if (t >= this.recBuffer.from - 0.05) this.recBuffer.ccs.push({ t: Math.max(this.recBuffer.from, t), c: 4, v: c.value });
     });
+  }
+
+  // A cymbal grabbed on the module (polyphonic aftertouch): the last hit of that
+  // cymbal gets a choke at this moment.
+  onChoke(c) {
+    if (!(c.value > 0)) return;
+    const p = this.store.project;
+    if (this.settings.monitor && p.sound.type !== 'module') this.audio.monitorChoke(c.note);
+    if (!this.audio.isRecording || !this.recBuffer) return;
+    const t = this.audio.posForPerfTime(c.time) - this.settings.latencyMs / 1000;
+    const notes = this.recBuffer.notes;
+    for (let i = notes.length - 1; i >= 0; i--) {
+      const h = notes[i];
+      if (h.t > t) continue;
+      if (t - h.t > 15) break;
+      if (!this.sameCymbal(h.n, c.note)) continue;
+      if (!h.ch) {
+        h.ch = Math.max(0.02, t - h.t);
+        this.timeline.dirty = true;
+      }
+      break;
+    }
+  }
+
+  // Two notes that are the same cymbal (a crash's bow and edge, a ride and its bell).
+  sameCymbal(a, b) {
+    if (a === b) return true;
+    const map = this.store.project.drumMap;
+    const ia = laneInfo(map, a);
+    const ib = laneInfo(map, b);
+    if (ia.family === 'ride' && ib.family === 'ride') return true;
+    return ia.family === 'cym' && !!ia.voice && ia.voice === ib.voice;
+  }
+
+  isCymbal(note) {
+    return ['cym', 'ride'].includes(laneInfo(this.store.project.drumMap, note).family);
+  }
+
+  // Choke (or stop choking) cymbal hits. A new choke lands one beat after the hit,
+  // or just before that cymbal's next hit if it comes sooner.
+  chokeHits(list, on) {
+    const ids = new Set(list.map((n) => n.id));
+    if (!ids.size) return 0;
+    this.store.edit(on ? (ids.size > 1 ? 'Choke cymbals' : 'Choke cymbal') : (ids.size > 1 ? 'Remove chokes' : 'Remove choke'), (proj, take) => {
+      for (const n of take.notes) {
+        if (!ids.has(n.id)) continue;
+        if (!on) { delete n.ch; continue; }
+        if (n.ch > 0) continue;
+        let ch = timeAtBeat(proj, beatAt(proj, n.t) + 1) - n.t;
+        const next = take.notes.find((x) => x.t > n.t + 0.001 && this.sameCymbal(x.n, n.n));
+        if (next) ch = Math.min(ch, Math.max(0.03, (next.t - n.t) * 0.85));
+        n.ch = Math.max(0.03, ch);
+      }
+    });
+    this.timeline.dirty = true;
+    return ids.size;
+  }
+
+  toggleChokeSelected() {
+    const cymbals = this.timeline.selectedNotes().filter((n) => this.isCymbal(n.n));
+    if (!cymbals.length) {
+      this.hint('Select cymbal hits first, then press K to choke them.');
+      return;
+    }
+    const allChoked = cymbals.every((n) => n.ch > 0);
+    this.chokeHits(cymbals, !allChoked);
+    this.hint(allChoked ? 'Chokes removed.' : 'Choked. Drag the end of the line to change when the cymbal is grabbed.');
   }
 
   onHit(h) {
@@ -1626,7 +1889,7 @@ class App {
 
   syncSongUI() {
     const p = this.store.project;
-    if (document.activeElement !== $('#tempo')) $('#tempo').value = p.tempo;
+    this.syncTempoField();
     const sig = `${p.sig[0]}/${p.sig[1]}`;
     const sel = $('#timesig');
     if (![...sel.options].some((o) => o.value === sig)) sel.append(el('option', { value: sig }, sig));
@@ -1796,13 +2059,16 @@ class App {
     const takeName = file.name.replace(/\.(mid|midi)$/i, '');
     this.store.edit('Import MIDI file', (proj) => {
       const take = newTake(takeName);
-      take.notes = data.hits.map((h) => ({ id: uid(), t: h.t, n: h.n, v: h.v }));
+      take.notes = data.hits.map((h) => ({ id: uid(), t: h.t, n: h.n, v: h.v, ...(h.ch > 0 ? { ch: h.ch } : {}) }));
       take.ccs = data.ccs;
       proj.takes.push(take);
       proj.activeTake = take.id;
       if (wasEmpty) {
+        const unit = data.sig[1] / 4; // beats per quarter note
         proj.sig = data.sig;
-        proj.tempo = Math.round(data.tempo * (data.sig[1] / 4));
+        proj.gridOrigin = 0;
+        proj.tempo = Math.round(data.tempo * unit * 100) / 100;
+        proj.tempoChanges = normTempoChanges((data.tempos || []).map((c) => ({ beat: c.quarter * unit, bpm: c.bpm * unit })));
         proj.takes = proj.takes.filter((t) => t.notes.length);
       }
     });
@@ -2154,6 +2420,18 @@ class App {
         item({ label: 'Copy to another drum…', iconName: 'copy', onClick: () => this.openLanePicker(null, 'copy', at) });
         item({ label: 'Quantize…', key: 'Q', iconName: 'quantize', onClick: () => this.openQuantize($('#btn-quantize')) });
         item({ label: 'Velocity…', iconName: 'velocity', onClick: () => this.openVelocity($('#btn-velocity')) });
+        const cymbals = this.timeline.selectedNotes().filter((x) => this.isCymbal(x.n));
+        if (cymbals.length) {
+          const choked = cymbals.filter((x) => x.ch > 0);
+          if (choked.length < cymbals.length) {
+            item({
+              label: cymbals.length > 1 ? `Choke ${cymbals.length} cymbal hits` : 'Choke this cymbal', key: 'K', iconName: 'choke',
+              sub: 'A hand grabs it a beat later. Drag the end of the line to change when.',
+              onClick: () => this.chokeHits(cymbals, true),
+            });
+          }
+          if (choked.length) item({ label: choked.length > 1 ? `Remove ${choked.length} chokes` : 'Remove the choke', iconName: 'choke', onClick: () => this.chokeHits(choked, false) });
+        }
       }
       if (note) {
         const info = { label: this.laneDisplay(note.n).label };
@@ -2325,10 +2603,12 @@ class App {
     const notes = this.store.notes.filter((n) => n.t >= start && n.t < end && !p.mutes.includes(n.n));
     if (kind === 'mid') {
       const convert = p.sound.type === 'plugin' ? p.sound.convertGM !== false : false;
+      const unit = 4 / p.sig[1];
       const bytes = writeMidi({
-        hits: notes.map((n) => ({ t: n.t - start, n: outputNote(p.drumMap, n.n, convert), v: n.v })),
+        hits: notes.map((n) => ({ t: n.t - start, n: outputNote(p.drumMap, n.n, convert), v: n.v, ch: n.ch || 0 })),
         ccs: this.store.ccs.filter((c) => c.t >= start && c.t < end).map((c) => ({ t: c.t - start, c: c.c, v: c.v })),
-        tempo: quarterBpm(p),
+        tempo: quarterBpm(p, start),
+        tempos: tempoSegments(p).slice(1).filter((x) => x.t > start + 1e-6 && x.t < end).map((x) => ({ t: x.t - start, bpm: x.bpm * unit })),
         sig: p.sig,
         name: p.name,
       });
@@ -2352,6 +2632,7 @@ class App {
         sampleRate: this.audio.ctx.sampleRate,
         cc: this.audio.engineCC(),
         variations: this.audio.variations,
+        wash: this.audio.wash,
       });
       onProgress?.(0.45);
     } else if (!this.audio.sampler.kit) {
@@ -2405,6 +2686,16 @@ class App {
       variationList.append(el('label', { class: 'check' }, input, el('span', {}, label, el('span', { class: 'mi-sub' }, sub))));
     }
 
+    const washList = el('div', { class: 'radio-list' });
+    for (const [value, label, sub] of [
+      [true, 'Connected', 'Played open in a row, the hi-hat keeps ringing under the next hit, like a real one.'],
+      [false, 'Separate', 'Each open hit starts fresh and cuts the one before short.'],
+    ]) {
+      const input = el('input', { type: 'radio', name: 'hihatWash', value: String(value), checked: (s.hihatWash !== false) === value });
+      input.addEventListener('change', () => { this.saveSetting({ hihatWash: value }); toast(`Open hi-hat: ${label.toLowerCase()}. You’ll hear it on the next playback.`); });
+      washList.append(el('label', { class: 'check' }, input, el('span', {}, label, el('span', { class: 'mi-sub' }, sub))));
+    }
+
     const monitor = el('input', { type: 'checkbox', checked: s.monitor });
     monitor.addEventListener('change', () => this.saveSetting({ monitor: monitor.checked }));
 
@@ -2436,6 +2727,8 @@ class App {
           el('h3', {}, 'Sound variations'),
           el('p', { class: 'note', style: { margin: '2px 8px 4px' } }, 'Sample kits have several recordings of each drum. How a drum picks one for each hit:'),
           variationList,
+          el('h3', {}, 'Open hi-hat'),
+          washList,
           el('h3', {}, 'Where things are saved'),
           el('p', { class: 'note' }, `Songs: ${this.folders?.projects || 'Projects folder'}`),
           el('p', { class: 'note' }, `Exports: ${this.folders?.exports || 'Exports folder'}`))),
@@ -2447,7 +2740,7 @@ class App {
     const keys = [
       ['Space', 'Play or stop'], ['R', 'Record or stop recording'], ['Home', 'Back to the start'],
       ['L', 'Loop on or off'], ['M', 'Click on or off'], ['T', 'Tap tempo'],
-      ['V / D', 'Select or Draw tool'], ['G', 'Snap to grid on or off'], ['Q', 'Quantize'],
+      ['V / D', 'Select or Draw tool'], ['G', 'Snap to grid on or off'], ['Q', 'Quantize'], ['K', 'Choke the selected cymbals'],
       ['Del', 'Delete selected hits'], ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+A', 'Select all hits'],
       ['Ctrl+C / Ctrl+V', 'Copy / paste at the playhead'], ['Ctrl+D', 'Duplicate selection'],
       ['← →', 'Nudge selected hits, or jump one bar'], ['↑ ↓', 'Move selected hits to another drum'],
@@ -2468,6 +2761,10 @@ class App {
           el('h3', {}, 'Drums and their sounds'),
           el('p', { class: 'note' }, 'Right-click a drum name (or use its ••• button) to move, copy or swap its hits with another drum, change its volume, or give it a sound from any of your kits, like a tom from another kit or a conga from Percussion. With a sample kit you can also pick one Variation, so the drum always plays that recording.'),
           el('p', { class: 'note' }, 'Sound › Save kit setup keeps the kit with its borrowed sounds, chosen variations, drum volumes and kit mixer. Pick it in any song from Sound › My kits.'),
+          el('h3', {}, 'Cymbal chokes'),
+          el('p', { class: 'note' }, 'Grab a cymbal on your module while recording and the hit is choked. To add one by hand, select cymbal hits and press K (or right-click › Choke). Drag the end of the line to change when the cymbal is grabbed.'),
+          el('h3', {}, 'Tempo changes'),
+          el('p', { class: 'note' }, 'Click the button next to Tap, or right-click the ruler at a bar, to play faster or slower from that bar on. The click, the grid and the bar numbers follow. The tempo box shows the tempo where the playhead is.'),
           el('h3', {}, 'Credits'),
           el('p', { class: 'note' }, 'Built-in kits: AVL Drumkits by Glen MacArthur (CC BY-SA 3.0). Sample kits: Naked Drums by Wilkinson Audio, Muldjord Kit and DRS Kit by the DrumGizmo team, SFZ versions by kinwie (CC BY 4.0). Percussion: samples from the Versilian Community Sample Library by Versilian Studios (CC0). Plugin hosting: DawDreamer (GPLv3). Typefaces: Barlow and Saira Stencil (SIL Open Font License).')),
         el('div', {}, el('h3', {}, 'Keyboard shortcuts'), dl)),
@@ -2532,6 +2829,7 @@ class App {
         case 'Home': handled(); this.goHome(); break;
         case 'End': handled(); this.audio.seek(this.store.lastNoteTime()); tl.reveal(this.audio.position); break;
         case 'l': case 'L': handled(); this.toggleLoop(); break;
+        case 'k': case 'K': handled(); this.toggleChokeSelected(); break;
         case 'm': case 'M': handled(); this.saveSetting({ click: !this.settings.click }); break;
         case 't': case 'T': handled(); this.tapTempo(); break;
         case 'v': case 'V': handled(); this.setTool('select'); break;
@@ -2636,7 +2934,7 @@ class App {
       let unit = 'bar.beat';
       const counting = this.audio.isRecording && this.audio.recordFrom !== null && pos < this.audio.recordFrom - 0.005;
       if (counting) {
-        const beats = Math.ceil((this.audio.recordFrom - pos) / beatDur(p) - 1e-6);
+        const beats = Math.ceil(beatAt(p, this.audio.recordFrom) - beatAt(p, pos) - 1e-6);
         main = [String(beats), ''];
         unit = 'count-in';
       } else {
@@ -2654,6 +2952,7 @@ class App {
         timeNode.textContent = time;
       }
       rec.classList.toggle('is-countin', counting);
+      if (hasTempoChanges(p) && bpmAt(p, Math.max(0, pos)) !== this.shownTempo) this.syncTempoField();
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);

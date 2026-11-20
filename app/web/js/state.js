@@ -28,6 +28,8 @@ export function newProject() {
     version: 1,
     name: 'Untitled song',
     tempo: 120,
+    // Tempo changes: from a beat (counted from bar 1, 0-based) the song plays at bpm.
+    tempoChanges: [],
     sig: [4, 4],
     gridOrigin: 0,
     drumMap: 'gm',
@@ -45,43 +47,146 @@ export function newProject() {
 }
 
 // ---- musical time ---------------------------------------------------------
-export const beatDur = (p) => 60 / p.tempo;
-export const barDur = (p) => beatDur(p) * p.sig[0];
-export const quarterDur = (p) => beatDur(p) * (p.sig[1] / 4);
-export const quarterBpm = (p) => p.tempo * (4 / p.sig[1]);
+// Hits are stored in seconds. The tempo map turns seconds into beats and back:
+// p.tempo plays from bar 1, and each tempo change takes over from its beat.
+// Beats are counted from the start of bar 1 (0) in the time signature's unit.
 
-export function stepDur(p, gridKey) {
+const mapCache = new WeakMap();
+
+export function normTempoChanges(list) {
+  const out = [];
+  for (const c of Array.isArray(list) ? list : []) {
+    const beat = Number(c?.beat);
+    const bpm = Number(c?.bpm);
+    if (!(beat > 0) || !(bpm >= 20 && bpm <= 400)) continue;
+    out.push({ beat: Math.round(beat * 1000) / 1000, bpm: Math.round(bpm * 100) / 100 });
+  }
+  out.sort((a, b) => a.beat - b.beat);
+  return out.filter((c, i) => i === 0 || c.beat !== out[i - 1].beat);
+}
+
+// [{beat, t, bpm}] sections, the first one starting at bar 1.
+export function tempoSegments(p) {
+  const changes = p.tempoChanges || [];
+  const origin = p.gridOrigin || 0;
+  const key = `${p.tempo}|${origin}|${changes.map((c) => `${c.beat}:${c.bpm}`).join(',')}`;
+  const hit = mapCache.get(p);
+  if (hit && hit.key === key) return hit.segs;
+  const segs = [{ beat: 0, t: origin, bpm: p.tempo }];
+  for (const c of changes) {
+    const last = segs[segs.length - 1];
+    if (!(c.beat > last.beat)) continue;
+    segs.push({ beat: c.beat, t: last.t + ((c.beat - last.beat) * 60) / last.bpm, bpm: c.bpm });
+  }
+  mapCache.set(p, { key, segs });
+  return segs;
+}
+
+function segAtTime(segs, t) {
+  let lo = 0;
+  let hi = segs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (segs[mid].t <= t + 1e-9) lo = mid; else hi = mid - 1;
+  }
+  return segs[lo];
+}
+
+function segAtBeat(segs, b) {
+  let lo = 0;
+  let hi = segs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (segs[mid].beat <= b + 1e-9) lo = mid; else hi = mid - 1;
+  }
+  return segs[lo];
+}
+
+// Before bar 1 the starting tempo continues backwards.
+export function beatAt(p, t, segs = tempoSegments(p)) {
+  const s = segAtTime(segs, t);
+  return s.beat + ((t - s.t) * s.bpm) / 60;
+}
+
+export function timeAtBeat(p, b, segs = tempoSegments(p)) {
+  const s = segAtBeat(segs, b);
+  return s.t + ((b - s.beat) * 60) / s.bpm;
+}
+
+// Tempo (in the time signature's beats) at a time, or at the start without one.
+export const bpmAt = (p, t = null) => (t === null ? p.tempo : segAtTime(tempoSegments(p), t).bpm);
+export const bpmAtBeat = (p, b) => segAtBeat(tempoSegments(p), b).bpm;
+export const beatDur = (p, t = null) => 60 / bpmAt(p, t);
+export const barDur = (p, t = null) => beatDur(p, t) * p.sig[0];
+export const quarterDur = (p, t = null) => beatDur(p, t) * (p.sig[1] / 4);
+export const quarterBpm = (p, t = null) => bpmAt(p, t) * (4 / p.sig[1]);
+export const hasTempoChanges = (p) => (p.tempoChanges || []).length > 0;
+
+// One grid step, in beats.
+export function stepBeats(p, gridKey) {
   const g = GRIDS[gridKey] || GRIDS['16'];
-  const base = (quarterDur(p) * 4) / g.div;
+  const base = p.sig[1] / g.div;
   return g.triplet ? (base * 2) / 3 : base;
 }
 
-export function snapTime(p, t, gridKey) {
-  const s = stepDur(p, gridKey);
-  const o = p.gridOrigin || 0;
-  return o + Math.round((t - o) / s) * s;
+// One grid step in seconds, at a time (the tempo can differ from bar to bar).
+export function stepDur(p, gridKey, t = null) {
+  return stepBeats(p, gridKey) * beatDur(p, t);
 }
 
+export function snapTime(p, t, gridKey) {
+  const s = stepBeats(p, gridKey);
+  return timeAtBeat(p, Math.round(beatAt(p, t) / s) * s);
+}
+
+// Move a time by a number of beats, following tempo changes.
+export const shiftBeats = (p, t, beats) => timeAtBeat(p, beatAt(p, t) + beats);
+
 export function barBeatAt(p, t) {
-  const rel = t - (p.gridOrigin || 0);
-  const bd = barDur(p);
-  const bar = Math.floor(rel / bd + 1e-9);
-  const within = rel - bar * bd;
-  const beat = Math.floor(within / beatDur(p) + 1e-9);
+  const b = beatAt(p, t);
+  const bar = Math.floor(b / p.sig[0] + 1e-9);
+  const beat = Math.floor(b - bar * p.sig[0] + 1e-9);
   return { bar: bar + 1, beat: beat + 1 };
 }
 
-export const timeOfBar = (p, bar) => (p.gridOrigin || 0) + (bar - 1) * barDur(p);
+export const timeOfBar = (p, bar) => timeAtBeat(p, (bar - 1) * p.sig[0]);
+export const beatOfBar = (p, bar) => (bar - 1) * p.sig[0];
+
+// Where a beat falls, as "bar 33" or "bar 33, beat 3".
+export function beatLabel(p, b) {
+  const bar = Math.floor(b / p.sig[0] + 1e-9);
+  const within = b - bar * p.sig[0];
+  if (Math.abs(within) < 1e-6) return `bar ${bar + 1}`;
+  return `bar ${bar + 1}, beat ${Math.round((within + 1) * 100) / 100}`;
+}
+
+// Keep hits on the same beats after the tempo map changed (`before` is the old
+// tempoSegments). Hits, pedal moves, chokes and the loop all move along.
+export function retime(p, before) {
+  const map = (t) => timeAtBeat(p, beatAt(p, t, before));
+  for (const take of p.takes) {
+    for (const n of take.notes) {
+      const end = n.ch ? map(n.t + n.ch) : null;
+      n.t = Math.max(0, map(n.t));
+      if (end !== null) n.ch = Math.max(0.02, end - n.t);
+    }
+    for (const c of take.ccs) c.t = Math.max(0, map(c.t));
+  }
+  if (p.loop.end > p.loop.start) p.loop = { ...p.loop, start: Math.max(0, map(p.loop.start)), end: map(p.loop.end) };
+}
 
 // ---- store ----------------------------------------------------------------
 const UNDO_LIMIT = 120;
 
+// A hit is [time, note, velocity] plus, for a choked cymbal, the seconds until the choke.
 function encodeTake(t) {
   return {
     id: t.id,
     name: t.name,
     created: t.created,
-    notes: t.notes.map((n) => [Math.round(n.t * 100000) / 100000, n.n, n.v]),
+    notes: t.notes.map((n) => (n.ch > 0
+      ? [Math.round(n.t * 100000) / 100000, n.n, n.v, Math.round(n.ch * 100000) / 100000]
+      : [Math.round(n.t * 100000) / 100000, n.n, n.v])),
     ccs: (t.ccs || []).map((c) => [Math.round(c.t * 100000) / 100000, c.c, c.v]),
   };
 }
@@ -91,7 +196,12 @@ function decodeTake(t) {
     id: t.id || uid(),
     name: t.name || 'Take',
     created: t.created || Date.now(),
-    notes: (t.notes || []).map((n) => (Array.isArray(n) ? { id: uid(), t: n[0], n: n[1], v: n[2] } : { id: uid(), t: n.t, n: n.n, v: n.v })),
+    notes: (t.notes || []).map((n) => {
+      const hit = Array.isArray(n) ? { id: uid(), t: n[0], n: n[1], v: n[2] } : { id: uid(), t: n.t, n: n.n, v: n.v };
+      const ch = Array.isArray(n) ? n[3] : n.ch;
+      if (ch > 0) hit.ch = ch;
+      return hit;
+    }),
     ccs: (t.ccs || []).map((c) => (Array.isArray(c) ? { t: c[0], c: c[1], v: c[2] } : { t: c.t, c: c.c, v: c.v })),
   };
 }
@@ -120,6 +230,7 @@ export class Store extends Emitter {
     const p = this.project;
     return JSON.stringify({
       tempo: p.tempo,
+      tempoChanges: p.tempoChanges || [],
       sig: p.sig,
       gridOrigin: p.gridOrigin,
       takes: p.takes.map(encodeTake),
@@ -233,6 +344,7 @@ export class Store extends Emitter {
     };
     p.loop = { ...base.loop, ...(data.loop || {}) };
     p.sig = Array.isArray(data.sig) ? data.sig : base.sig;
+    p.tempoChanges = normTempoChanges(data.tempoChanges);
     p.mutes = Array.isArray(data.mutes) ? data.mutes : [];
     this.project = p;
     this.file = file || null;

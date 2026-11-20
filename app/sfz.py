@@ -34,6 +34,14 @@ HEADER_RE = re.compile(r"<(\w+)>")
 OPCODE_RE = re.compile(r"(?:(?<=\s)|(?<=>)|^)([A-Za-z_][A-Za-z0-9_]*)=", re.M)
 DIRECTIVE_RE = re.compile(r"#(define|include)\b")
 FAST_RELEASE = 0.006
+# An open hi-hat hit this soon after the last open hit rings into it (see render's wash):
+# the last hit fades out over WASH_RELEASE (base + per second of gap, within limits) and
+# the new hit starts at WASH_SOFT[0] of its level, reaching full level after WASH_SOFT[1] s.
+WASH_MAX_GAP = 0.75
+WASH_RELEASE = (0.4, 3.0, 0.5, 1.5)
+WASH_SOFT = (0.28, 0.11)
+# How fast a grabbed (choked) cymbal goes quiet.
+CHOKE_FADE = 0.15
 
 
 class SfzError(Exception):
@@ -720,8 +728,17 @@ class SfzKit:
         return gain * min(1.0, 1.0 - pan), gain * min(1.0, 1.0 + pan)
 
     def render(self, events, duration: float, sr: int, cc_overrides: dict | None = None, seed: int | None = None,
-               vary: bool = True, variations: str = "cycle"):
-        """events: sorted list of (seconds, 'note', note, vel[, gain[, take]]) or (seconds, 'cc', number, value127).
+               vary: bool = True, variations: str = "cycle", wash=None):
+        """events: sorted list of (seconds, 'note', note, vel[, gain[, take]]), (seconds, 'cc', number, value127)
+        or (seconds, 'choke', note, 0).
+
+        A choke is a hand grabbing the cymbal: everything that key is playing fades out
+        within CHOKE_FADE.
+
+        wash: the keys that play the open hi-hat. When one of them is hit while the hat still
+        rings from the last open hit, that ring fades out slowly under the new hit and the new
+        hit starts a little softer, the way an open hi-hat played in eighths sounds like one
+        continuous wash. None or empty keeps every hit separate.
 
         take (0-based) makes the hit always play that one recording of the sound
         (see take_count), with no random tuning or level.
@@ -745,8 +762,18 @@ class SfzKit:
         by_offby: dict[int, list] = {}
         by_group_key: dict[tuple, list] = {}
         by_group: dict[int, list] = {}
+        by_key: dict[int, list] = {}
+        wash_keys = {int(k) for k in (wash or ())}
+        wash_prev = None  # (frame, voices) of the last open hi-hat hit
 
-        def stop_voice(v, frame):
+        def stop_voice(v, frame, fade=None):
+            """Start fading a voice out. A later stop can only make it end sooner."""
+            fade = v["fade"] if fade is None else max(1, int(fade))
+            end = frame + fade
+            if v["end_at"] is not None and end >= v["end_at"]:
+                return
+            v["stops"].append((frame, fade))
+            v["end_at"] = end
             if v["stop"] is None:
                 v["stop"] = frame
 
@@ -755,6 +782,11 @@ class SfzKit:
             frame = int(round(t * sr))
             if kind == "cc":
                 cc[int(a)] = min(1.0, max(0.0, b / 127.0))
+                continue
+            if kind == "choke":
+                for v in by_key.get(int(a) + self.note_offset, ()):
+                    if v["start"] <= frame:
+                        stop_voice(v, frame, CHOKE_FADE * sr)
                 continue
             hit_gain = float(ev[4]) if len(ev) > 4 and ev[4] is not None else 1.0
             if hit_gain <= 1e-6:
@@ -797,10 +829,31 @@ class SfzKit:
                     triggered.append(r)
             if not triggered:
                 continue
+            is_wash = int(a) in wash_keys
+            ringing = ()
+            soften = None
+            if is_wash and wash_prev is not None:
+                gap = (frame - wash_prev[0]) / sr
+                ringing = [v for v in wash_prev[1] if v["stop"] is None]
+                if ringing and 0.0 < gap < WASH_MAX_GAP:
+                    # The last hit keeps ringing under this one and fades away over about
+                    # two hits; this hit's attack is gentler the closer it follows.
+                    base, per_gap, lo, hi = WASH_RELEASE
+                    release = min(hi, max(lo, base + per_gap * gap))
+                    for v in ringing:
+                        stop_voice(v, frame, release * sr)
+                    closeness = min(1.0, max(0.0, (gap - 0.18) / (WASH_MAX_GAP - 0.18)))
+                    g0 = WASH_SOFT[0] + (1.0 - WASH_SOFT[0]) * closeness
+                    if g0 < 0.99:
+                        soften = (max(1, int(WASH_SOFT[1] * sr)), g0)
+                else:
+                    ringing = ()
+            fading = {id(v) for v in ringing}
             for g in {r.group for r in triggered}:
                 for v in by_offby.get(g, ()):
-                    if v["start"] <= frame:
+                    if v["start"] <= frame and id(v) not in fading:
                         stop_voice(v, frame)
+            new_voices = []
             for r in triggered:
                 if r.note_polyphony:
                     alive = [v for v in by_group_key.get((r.group, note), ()) if v["stop"] is None and v["start"] <= frame]
@@ -838,16 +891,22 @@ class SfzKit:
                     "gl": gl,
                     "gr": gr,
                     "stop": None,
+                    "stops": [],
+                    "end_at": None,
                     "fade": max(1, int(r.off_time * sr)),
+                    "attack": soften,
                 }
                 voices.append(v)
+                new_voices.append(v)
+                by_key.setdefault(note, []).append(v)
                 if r.off_by is not None:
                     by_offby.setdefault(r.off_by, []).append(v)
                 if r.note_polyphony:
                     by_group_key.setdefault((r.group, note), []).append(v)
                 if r.polyphony:
                     by_group.setdefault(r.group, []).append(v)
-        ramps: dict[int, np.ndarray] = {}
+            if is_wash and new_voices:
+                wash_prev = (frame, new_voices)
         for v in voices:
             data = v["data"]
             s0 = v["start"]
@@ -856,9 +915,8 @@ class SfzKit:
             if v["end"] is not None and v["end"] > 0:
                 last = min(last, v["end"])
             out_end = s0 + (last - first)
-            stop = v["stop"]
-            if stop is not None:
-                out_end = min(out_end, stop + v["fade"])
+            if v["end_at"] is not None:
+                out_end = min(out_end, v["end_at"])
             a = max(0, s0)
             b = min(frames, out_end)
             if b <= a:
@@ -868,15 +926,26 @@ class SfzKit:
             b = a + chunk.shape[1]
             if b <= a:
                 continue
-            if stop is not None and stop < b:
-                fade = v["fade"]
-                ramp = ramps.get(fade)
-                if ramp is None:
-                    ramp = ramps[fade] = np.linspace(1.0, 0.0, fade, dtype=np.float32)
+            env = None
+            if v["attack"] is not None:
+                span, g0 = v["attack"]
+                ea, eb = max(a, s0), min(b, s0 + span)
+                if eb > ea:
+                    env = np.ones(b - a, dtype=np.float32)
+                    x = np.arange(ea - s0, eb - s0, dtype=np.float32) / span
+                    env[ea - a: eb - a] = g0 + (1.0 - g0) * (0.5 - 0.5 * np.cos(np.pi * x))
+            for stop, fade in v["stops"]:
+                if stop >= b:
+                    continue
                 fs = max(stop, a)
-                part = ramp[fs - stop: fs - stop + (b - fs)]
-                chunk = chunk.copy()
-                chunk[:, fs - a: fs - a + part.shape[0]] *= part
+                if env is None:
+                    env = np.ones(b - a, dtype=np.float32)
+                ramp = 1.0 - np.arange(fs - stop, b - stop, dtype=np.float32) / fade
+                np.clip(ramp, 0.0, 1.0, out=ramp)
+                part = env[fs - a:]
+                np.minimum(part, ramp, out=part)
+            if env is not None:
+                chunk = chunk * env
             gl, gr = v["gl"], v["gr"]
             if chunk.shape[0] == 1:
                 out[0, a:b] += chunk[0] * gl

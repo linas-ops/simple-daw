@@ -3,7 +3,7 @@
 
 import { Emitter, $, el, clamp, lowerBound, icon, setIcon, uid } from './util.js';
 import { laneInfo, sortLanes, getMap, FAMILIES, isKitLane } from './drummap.js';
-import { barDur, beatDur, stepDur, snapTime } from './state.js';
+import { barDur, stepDur, stepBeats, snapTime, beatAt, timeAtBeat, tempoSegments, bpmAt, hasTempoChanges } from './state.js';
 
 const MIN_PPS = 3;
 const MAX_PPS = 1600;
@@ -326,9 +326,10 @@ export class Timeline extends Emitter {
   nudge(dir) {
     const sel = this.selectedNotes();
     if (!sel.length) return;
-    const step = this.snap ? stepDur(this.p, this.grid) : 0.005;
+    const p = this.p;
+    const step = stepBeats(p, this.grid);
     this.store.edit('Nudge hits', () => {
-      for (const n of sel) n.t = Math.max(0, n.t + dir * step);
+      for (const n of sel) n.t = Math.max(0, this.snap ? timeAtBeat(p, beatAt(p, n.t) + dir * step) : n.t + dir * 0.005);
     });
   }
 
@@ -369,6 +370,7 @@ export class Timeline extends Emitter {
       if (mode === 'copy') {
         for (const n of chosen) {
           const c = { id: uid(), t: n.t, n: to, v: n.v };
+          if (n.ch) c.ch = n.ch;
           take.notes.push(c);
           copies.push(c.id);
         }
@@ -397,20 +399,27 @@ export class Timeline extends Emitter {
     return count;
   }
 
+  // The clipboard keeps beats, so a part pasted where the tempo differs stays in time.
   copy() {
     const sel = this.selectedNotes();
     if (!sel.length) return 0;
-    const t0 = Math.min(...sel.map((n) => n.t));
-    this.clipboard = sel.map((n) => ({ t: n.t - t0, n: n.n, v: n.v }));
+    const p = this.p;
+    const b0 = beatAt(p, Math.min(...sel.map((n) => n.t)));
+    this.clipboard = sel.map((n) => ({ b: beatAt(p, n.t) - b0, n: n.n, v: n.v, ch: n.ch || 0 }));
     return sel.length;
   }
 
   paste(at) {
     if (!this.clipboard?.length) return 0;
-    const start = this.snapT(at);
+    const p = this.p;
+    const start = beatAt(p, this.snapT(at));
     const added = [];
     this.store.edit('Paste hits', () => {
-      for (const c of this.clipboard) added.push(this.addNote(start + c.t, c.n, c.v));
+      for (const c of this.clipboard) {
+        const n = this.addNote(timeAtBeat(p, start + c.b), c.n, c.v);
+        if (c.ch) n.ch = c.ch;
+        added.push(n);
+      }
     });
     this.selection = new Set(added.map((n) => n.id));
     this.emitSelection();
@@ -420,17 +429,21 @@ export class Timeline extends Emitter {
   duplicate() {
     const sel = this.selectedNotes();
     if (!sel.length) return 0;
-    const t0 = Math.min(...sel.map((n) => n.t));
-    const t1 = Math.max(...sel.map((n) => n.t));
-    const bar = barDur(this.p);
-    const shift = Math.max(1, Math.ceil((t1 - t0 + 1e-3) / bar)) * bar;
+    const p = this.p;
+    const b0 = beatAt(p, Math.min(...sel.map((n) => n.t)));
+    const b1 = beatAt(p, Math.max(...sel.map((n) => n.t)));
+    const shift = Math.max(1, Math.ceil((b1 - b0 + 1e-3) / p.sig[0])) * p.sig[0];
     const added = [];
     this.store.edit('Duplicate hits', () => {
-      for (const n of sel) added.push(this.addNote(n.t + shift, n.n, n.v));
+      for (const n of sel) {
+        const c = this.addNote(timeAtBeat(p, beatAt(p, n.t) + shift), n.n, n.v);
+        if (n.ch) c.ch = n.ch;
+        added.push(c);
+      }
     });
     this.selection = new Set(added.map((n) => n.id));
     this.emitSelection();
-    this.reveal(t0 + shift);
+    this.reveal(timeAtBeat(p, b0 + shift));
     return added.length;
   }
 
@@ -449,7 +462,7 @@ export class Timeline extends Emitter {
       for (const n of take.notes) {
         const prev = keep.length ? keep[keep.length - 1] : null;
         const dupe = prev && prev.n === n.n && Math.abs(prev.t - n.t) < 0.002 && (ids.has(n.id) || ids.has(prev.id));
-        if (dupe) { prev.v = Math.max(prev.v, n.v); continue; }
+        if (dupe) { prev.v = Math.max(prev.v, n.v); if (n.ch && !prev.ch) prev.ch = n.ch; continue; }
         keep.push(n);
       }
       take.notes = keep;
@@ -501,6 +514,19 @@ export class Timeline extends Emitter {
     return best;
   }
 
+  // The end of a choke line (where the cymbal is grabbed) near this point, or null.
+  chokeAt(x, y) {
+    const note = this.lanes[Math.floor(y / this.laneH)];
+    if (note === undefined) return null;
+    const t = this.x2t(x);
+    const notes = this.store.notes;
+    for (let i = lowerBound(notes, t - 16); i < notes.length && notes[i].t <= t; i++) {
+      const n = notes[i];
+      if (n.n === note && n.ch > 0 && Math.abs(this.t2x(n.t + n.ch) - x) <= 5) return n;
+    }
+    return null;
+  }
+
   local(e, canvas) {
     const r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -514,12 +540,20 @@ export class Timeline extends Emitter {
     grid.addEventListener('mouseleave', () => { this.hoverLane = -1; this.hoverNote = null; this.dirty = true; this.emit('hint', null); });
     grid.addEventListener('contextmenu', (e) => { e.preventDefault(); this.app.openGridMenu(e, this.noteAt(...Object.values(this.local(e, grid)))); });
     this.cv.ruler.addEventListener('mousedown', (e) => this.onRulerDown(e));
-    this.cv.ruler.addEventListener('dblclick', () => {
+    this.cv.ruler.addEventListener('dblclick', (e) => {
+      if (this.tempoMarkAt(this.local(e, this.cv.ruler).x)) return;
       if (this.p.loop.on || this.p.loop.end > this.p.loop.start) this.app.setLoop(false);
     });
+    this.cv.ruler.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this.app.openRulerMenu?.(e, this.x2t(this.local(e, this.cv.ruler).x));
+    });
     this.cv.ruler.addEventListener('mousemove', (e) => {
-      this.emit('hint', 'Click to move the playhead. Drag to mark a part to loop. Double-click to clear the loop.');
       const { x } = this.local(e, this.cv.ruler);
+      const mark = this.tempoMarkAt(x);
+      this.emit('hint', mark
+        ? 'Tempo change. Click to change or remove it.'
+        : 'Click to move the playhead. Drag to mark a part to loop. Right-click to change the tempo from a bar.');
       const L = this.p.loop;
       const nearEdge = L.end > L.start && (Math.abs(x - this.t2x(L.start)) < 6 || Math.abs(x - this.t2x(L.end)) < 6);
       this.cv.ruler.style.cursor = nearEdge ? 'ew-resize' : 'pointer';
@@ -561,6 +595,11 @@ export class Timeline extends Emitter {
     if (this.drag) return;
     const { x, y } = this.local(e, this.cv.grid);
     const lane = Math.floor(y / this.laneH);
+    if (this.tool === 'select' && this.chokeAt(x, y)) {
+      this.emit('hint', 'Choke: here a hand grabs the cymbal. Drag to change when. Drag it onto the hit to remove it.');
+      this.cv.grid.style.cursor = 'ew-resize';
+      return;
+    }
     const note = this.noteAt(x, y);
     if (lane !== this.hoverLane || note !== this.hoverNote) {
       this.hoverLane = lane;
@@ -597,6 +636,12 @@ export class Timeline extends Emitter {
       this.dirty = true;
       return;
     }
+    const choked = this.chokeAt(x, y);
+    if (choked && e.detail !== 2) {
+      this.store.beginGesture();
+      this.drag = { type: 'choke', note: choked };
+      return;
+    }
     if (e.detail === 2) {
       if (hit) {
         this.store.edit('Delete hit', (p, take) => { take.notes = take.notes.filter((n) => n.id !== hit.id); });
@@ -630,9 +675,18 @@ export class Timeline extends Emitter {
     this.dirty = true;
   }
 
+  tempoMarkAt(x) {
+    return (this.tempoMarks || []).find((m) => x >= m.x0 - 2 && x <= m.x1 + 2) || null;
+  }
+
   onRulerDown(e) {
     if (e.button !== 0) return;
     const { x } = this.local(e, this.cv.ruler);
+    const mark = this.tempoMarkAt(x);
+    if (mark) {
+      this.app.openTempoChanges?.({ x: e.clientX, y: e.clientY + 8 }, mark.beat);
+      return;
+    }
     const L = this.p.loop;
     if (L.end > L.start) {
       if (Math.abs(x - this.t2x(L.start)) < 6) { this.store.beginGesture(); this.drag = { type: 'loop-edge', edge: 'start' }; return; }
@@ -676,18 +730,28 @@ export class Timeline extends Emitter {
     const d = this.drag;
     if (!d) return;
     const p = this.p;
-    if (d.type === 'move') {
+    if (d.type === 'choke') {
+      const { x } = this.local(e, this.cv.grid);
+      const n = d.note;
+      let t = this.x2t(x);
+      if (this.snap && !e.altKey) t = this.snapT(t, true);
+      n.ch = Math.max(0, t - n.t);
+      this.emit('hint', n.ch < 0.03 ? 'Let go here to remove the choke.' : 'Choke: when a hand grabs the cymbal. Hold Alt to move it freely.');
+      this.dirty = true;
+    } else if (d.type === 'move') {
       const { x, y } = this.local(e, this.cv.grid);
       if (!d.moved && Math.hypot(x - d.x0, y - d.y0) < 4) return;
       if (!d.moved) { this.store.beginGesture(); d.moved = true; this.cv.grid.classList.add('is-dragging'); }
       let dt = (x - d.x0) / this.pps;
       if (this.snap && !e.altKey) dt = this.snapT(d.anchorT + dt, true) - d.anchorT;
+      // Move by beats, so hits keep their place in the bar where the tempo changes.
+      const db = beatAt(p, d.anchorT + dt) - beatAt(p, d.anchorT);
       const laneNow = clamp(Math.floor(y / this.laneH), 0, this.lanes.length - 1);
       const dl = laneNow - d.lane0;
       for (const n of this.store.notes) {
         const o = d.orig.get(n.id);
         if (!o) continue;
-        n.t = Math.max(0, o.t + dt);
+        n.t = Math.max(0, hasTempoChanges(p) ? timeAtBeat(p, beatAt(p, o.t) + db) : o.t + dt);
         n.n = dl ? this.lanes[clamp(o.lane + dl, 0, this.lanes.length - 1)] : o.n;
       }
       this.store.sortNotes();
@@ -715,7 +779,7 @@ export class Timeline extends Emitter {
       const st = this.snapT(this.x2t(x), true);
       if (Math.abs(st - d.last) < 1e-6) return;
       d.last = st;
-      if (!this.findNote(st, d.lane, stepDur(p, this.grid) * 0.45)) {
+      if (!this.findNote(st, d.lane, stepDur(p, this.grid, st) * 0.45)) {
         this.addNote(st, d.lane, this.app.drawVelocity());
         this.store.sortNotes();
         this.dirty = true;
@@ -775,7 +839,11 @@ export class Timeline extends Emitter {
     this.emit('hint', null);
     this.cv.grid.classList.remove('is-dragging');
     this.cv.backing.style.cursor = '';
-    if (d.type === 'move' && d.moved) {
+    if (d.type === 'choke') {
+      const removed = !(d.note.ch >= 0.03);
+      if (removed) delete d.note.ch;
+      this.store.endGesture(removed ? 'Remove choke' : 'Move choke');
+    } else if (d.type === 'move' && d.moved) {
       const n = d.orig.size;
       this.store.endGesture(n === 1 ? 'Move hit' : `Move ${n} hits`);
     } else if (d.type === 'paint') {
@@ -840,33 +908,36 @@ export class Timeline extends Emitter {
     requestAnimationFrame(() => this.frame());
   }
 
+  // Bars, beats and grid steps in view: cb(kind, time, bar index from 0, labeled, bar end).
   gridLines(w, cb) {
     const p = this.p;
+    const segs = tempoSegments(p);
     const t0 = this.x2t(0);
     const t1 = this.x2t(w);
-    const bar = barDur(p);
-    const beat = beatDur(p);
-    const step = stepDur(p, this.grid);
-    const origin = p.gridOrigin || 0;
-    const barPx = bar * this.pps;
+    const per = p.sig[0];
+    const stepB = stepBeats(p, this.grid);
+    // How dense the lines can be, judged by the fastest tempo in view.
+    let bpm = bpmAt(p, t0);
+    for (const s of segs) if (s.t > t0 && s.t < t1) bpm = Math.max(bpm, s.bpm);
+    const beatPx = (60 / bpm) * this.pps;
     let barEvery = 1;
-    while (barPx * barEvery < 34) barEvery *= 2;
-    const showBeats = beat * this.pps >= 6;
-    const showSteps = step * this.pps >= 8 && step < beat - 1e-9;
-    const firstBar = Math.floor((t0 - origin) / bar) - 1;
-    const lastBar = Math.ceil((t1 - origin) / bar) + 1;
+    while (beatPx * per * barEvery < 34) barEvery *= 2;
+    const showBeats = beatPx >= 6;
+    const showSteps = stepB * beatPx >= 8 && stepB < 1 - 1e-9;
+    const firstBar = Math.floor(beatAt(p, t0, segs) / per) - 1;
+    const lastBar = Math.ceil(beatAt(p, t1, segs) / per) + 1;
     for (let b = firstBar; b <= lastBar; b++) {
-      const bt = origin + b * bar;
-      cb('barStart', bt, b, b % barEvery === 0);
+      const bt = timeAtBeat(p, b * per, segs);
+      cb('barStart', bt, b, b % barEvery === 0, timeAtBeat(p, (b + 1) * per, segs));
       if (showSteps) {
-        const n = Math.round(bar / step);
-        for (let s = 1; s < n; s++) {
-          const st = bt + s * step;
-          const isBeat = Math.abs(((st - bt) / beat) - Math.round((st - bt) / beat)) < 1e-6;
-          cb(isBeat && showBeats ? 'beat' : 'step', st, b);
+        const n = Math.round(per / stepB);
+        for (let k = 1; k < n; k++) {
+          const pos = k * stepB;
+          const isBeat = Math.abs(pos - Math.round(pos)) < 1e-6;
+          cb(isBeat && showBeats ? 'beat' : 'step', timeAtBeat(p, b * per + pos, segs), b);
         }
       } else if (showBeats) {
-        for (let k = 1; k < p.sig[0]; k++) cb('beat', bt + k * beat, b);
+        for (let k = 1; k < per; k++) cb('beat', timeAtBeat(p, b * per + k, segs), b);
       }
     }
     return barEvery;
@@ -891,6 +962,7 @@ export class Timeline extends Emitter {
     }
     g.font = cssFont(600, 13);
     g.textBaseline = 'middle';
+    const labelEnd = new Map(); // bar index -> x where its number ends
     this.gridLines(w, (kind, t, bar, labeled) => {
       const x = Math.round(this.t2x(t)) + 0.5;
       if (x < -40 || x > w + 40) return;
@@ -899,14 +971,39 @@ export class Timeline extends Emitter {
         g.strokeStyle = labeled ? 'rgba(190,196,214,0.55)' : 'rgba(190,196,214,0.25)';
         g.beginPath(); g.moveTo(x, labeled ? 6 : 16); g.lineTo(x, h); g.stroke();
         if (labeled) {
+          const label = String(bar + 1);
           g.fillStyle = COLORS.dim;
-          g.fillText(String(bar + 1), x + 4, h / 2 - 1);
+          g.fillText(label, x + 4, h / 2 - 1);
+          labelEnd.set(bar, x + 4 + g.measureText(label).width);
         }
       } else if (kind === 'beat' && bar >= 0) {
         g.strokeStyle = 'rgba(150,158,180,0.35)';
         g.beginPath(); g.moveTo(x, h - 8); g.lineTo(x, h); g.stroke();
       }
     });
+    // Tempo changes: a brass tag after the bar number, starting tempo included.
+    this.tempoMarks = [];
+    if (hasTempoChanges(p)) {
+      g.font = cssFont(700, 11);
+      for (const seg of tempoSegments(p)) {
+        const x = Math.round(this.t2x(seg.t)) + 0.5;
+        if (x < -60 || x > w + 10) continue;
+        const bar = Math.round(seg.beat / p.sig[0]);
+        const onBar = Math.abs(seg.beat - bar * p.sig[0]) < 1e-6;
+        const left = onBar && labelEnd.has(bar) ? labelEnd.get(bar) + 5 : x + 4;
+        const text = `${Math.round(seg.bpm * 10) / 10}`;
+        const tw = g.measureText(text).width + 12;
+        g.fillStyle = 'rgba(217,166,90,0.18)';
+        roundRect(g, left, 4, tw, h - 9, 3);
+        g.fill();
+        g.fillStyle = COLORS.brass;
+        g.fillRect(x - 0.5, 2, 2, h - 4);
+        g.beginPath(); g.moveTo(left + 4, h / 2 - 5); g.lineTo(left + 4, h / 2 + 4); g.lineTo(left + 8, h / 2 - 0.5); g.closePath();
+        g.fill();
+        g.fillText(text, left + 10, h / 2 - 1);
+        this.tempoMarks.push({ x0: Math.min(x, left), x1: left + tw, beat: seg.beat });
+      }
+    }
     // playhead marker
     const px = this.t2x(pos);
     if (px >= -8 && px <= w + 8) {
@@ -957,13 +1054,12 @@ export class Timeline extends Emitter {
     g.fillStyle = COLORS.bg;
     g.fillRect(0, 0, w, h);
     const origin = p.gridOrigin || 0;
-    const bar = barDur(p);
-    this.gridLines(w, (kind, t, b) => {
+    this.gridLines(w, (kind, t, b, labeled, end) => {
       if (kind !== 'barStart') return;
       if (b % 2 === 1) {
         const x0 = this.t2x(t);
         g.fillStyle = COLORS.bgAlt;
-        g.fillRect(x0, 0, bar * this.pps, h);
+        g.fillRect(x0, 0, (end - t) * this.pps, h);
       }
     });
     const xo = this.t2x(Math.min(0, origin));
@@ -1031,6 +1127,19 @@ export class Timeline extends Emitter {
       const y = li * laneH + (laneH - hh) / 2;
       const muted = p.mutes.includes(n.n);
       const sel = !live && this.selection.has(n.id);
+      if (n.ch > 0) {
+        const xe = this.t2x(n.t + n.ch);
+        const yc = li * laneH + laneH / 2;
+        const grabbing = this.drag?.type === 'choke' && this.drag.note === n;
+        g.globalAlpha = muted ? 0.3 : grabbing ? 1 : 0.8;
+        g.strokeStyle = info.color;
+        g.lineWidth = 1.5;
+        g.setLineDash([3, 3]);
+        g.beginPath(); g.moveTo(x + hw / 2, yc); g.lineTo(xe, yc); g.stroke();
+        g.setLineDash([]);
+        g.lineWidth = 2.5;
+        g.beginPath(); g.moveTo(xe, yc - 7); g.lineTo(xe, yc + 7); g.stroke();
+      }
       g.globalAlpha = muted ? 0.28 : 0.4 + 0.6 * v;
       g.fillStyle = info.color;
       roundRect(g, x - hw / 2, y, hw, hh, Math.min(3, hw / 2));
@@ -1054,7 +1163,10 @@ export class Timeline extends Emitter {
       }
     };
     const notes = this.store.notes;
-    for (let i = lowerBound(notes, t0); i < notes.length && notes[i].t <= t1; i++) drawHit(notes[i], false);
+    // Start a little earlier so a choke line reaching into view is drawn too.
+    for (let i = lowerBound(notes, t0 - 8); i < notes.length && notes[i].t <= t1; i++) {
+      if (notes[i].t >= t0 || notes[i].ch > 0) drawHit(notes[i], false);
+    }
     for (const n of this.liveNotes) if (n.t >= t0 && n.t <= t1) drawHit(n, true);
     // selection band
     const d = this.drag;

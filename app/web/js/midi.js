@@ -99,6 +99,9 @@ export class MidiIO extends Emitter {
       this.emit('hit', { note: d[1], vel: d[2], channel, time: e.timeStamp, port: port.name });
     } else if (type === 0xb0) {
       this.emit('cc', { cc: d[1], value: d[2], channel, time: e.timeStamp });
+    } else if (type === 0xa0) {
+      // Polyphonic aftertouch: most modules send it when you grab (choke) a cymbal.
+      this.emit('choke', { note: d[1], value: d[2], channel, time: e.timeStamp });
     }
   }
 }

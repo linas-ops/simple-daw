@@ -53,6 +53,16 @@ def write_midi_file(path: str, events: list, ppq: int = 9600, bpm: float = 120.0
         fh.write(header + b"MTrk" + struct.pack(">I", len(track)) + bytes(track))
 
 
+def _choke_of(item) -> float:
+    """Seconds from a hit to its choke (its 5th item), or 0 when it rings out."""
+    if len(item) > 4 and item[4]:
+        try:
+            return max(0.0, float(item[4]))
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
+
+
 def build_events(notes, ccs, t0: float, t_end: float):
     """Turn absolute-time hits/CCs into MIDI events relative to t0."""
     events = []
@@ -64,6 +74,11 @@ def build_events(notes, ccs, t0: float, t_end: float):
         t, n, v = float(item[0]), int(item[1]), int(item[2])
         if t0 - 1e-6 <= t < t_end:
             by_note.setdefault(n, []).append((t, v))
+            choke = _choke_of(item)
+            if choke and t + choke < t_end:
+                # A cymbal choke is sent as polyphonic aftertouch, like a module does when you grab a cymbal.
+                events.append((t + choke - t0, (0xA0 | NOTE_CHANNEL, n & 0x7F, 127)))
+                events.append((t + choke + 0.06 - t0, (0xA0 | NOTE_CHANNEL, n & 0x7F, 0)))
     for n, hits in by_note.items():
         hits.sort()
         for i, (t, v) in enumerate(hits):
@@ -256,10 +271,27 @@ class Host:
             "controls": kit.controls(),
         }
 
+    @staticmethod
+    def _wash_keys(opts: dict) -> set:
+        """The keys that play this kit's open (or half-open) hi-hat, after its note map.
+        A kit that maps the open hi-hat note to something else (like Percussion's tambourine)
+        has none."""
+        note_map = {int(k): int(v) for k, v in (opts.get("noteMap") or {}).items()}
+        rules = (opts.get("hihat") or {}).get("rules") or {}
+        keys = set()
+        for ranges in rules.values():
+            for lo, _hi, target in ranges:
+                if int(lo) == 0:
+                    keys.add(int(target))
+        if rules or note_map.get(46, 46) == 46:
+            keys.add(note_map.get(46, 46))
+        return keys
+
     def render_kit(self, notes, ccs, start: float, preroll: float, length: float, sample_rate: int,
-                   cc_overrides=None, routes=None, variations="cycle"):
+                   cc_overrides=None, routes=None, variations="cycle", wash=True):
         """Render hits with the main kit. A hit can name a route (its 4th item): which kit
-        plays it, which key, whether that kit's note map applies, and a level."""
+        plays it, which key, whether that kit's note map applies, and a level. Its 5th item
+        is a choke: seconds until the cymbal is grabbed."""
         import numpy as np
         import sfz
 
@@ -300,6 +332,7 @@ class Host:
                     idx = -1
                 if 0 <= idx < len(routes) and isinstance(routes[idx], dict):
                     route = routes[idx]
+            choke = _choke_of(item)
             path, key, raw, gain, take = self.main, n, False, 1.0, None
             if route:
                 path = os.path.abspath(route.get("path") or self.main)
@@ -308,13 +341,14 @@ class Host:
                 gain = max(0.0, float(route.get("gain", 1.0)))
                 if route.get("take") is not None:
                     take = max(0, int(route["take"]))
-            g = groups.setdefault(path, {"cooked": [], "gains": [], "takes": [], "raw": [], "route": route})
+            g = groups.setdefault(path, {"cooked": [], "gains": [], "takes": [], "chokes": [], "raw": [], "route": route})
             if raw:
-                g["raw"].append((t, key, v, gain, take))
+                g["raw"].append((t, key, v, gain, take, choke))
             else:
                 g["cooked"].append([t, key, v])
                 g["gains"].append(gain)
                 g["takes"].append(take)
+                g["chokes"].append(choke)
         skip = int(round(preroll * sr))
         for path, g in groups.items():
             try:
@@ -328,19 +362,23 @@ class Host:
                 continue
             kit, opts = entry["kit"], entry["opts"]
             events = list(cc_events)
+            hits = []
             if g["cooked"]:
                 mapped = sfz.apply_kit_rules(g["cooked"], valid_ccs, opts.get("noteMap"), opts.get("hihat"))
-                for (t, n, v), gain, take in zip(mapped, g["gains"], g["takes"]):
-                    events.append((max(0.0, t - t0), "note", int(n), int(v), gain, take))
-            for t, n, v, gain, take in g["raw"]:
+                hits += [(t, n, v, gain, take, choke) for (t, n, v), gain, take, choke in zip(mapped, g["gains"], g["takes"], g["chokes"])]
+            hits += g["raw"]
+            for t, n, v, gain, take, choke in hits:
                 events.append((max(0.0, t - t0), "note", int(n), int(v), gain, take))
+                if choke and t + choke < t_end:
+                    events.append((max(0.0, t + choke - t0), "choke", int(n), 0))
             if not any(e[1] == "note" for e in events):
                 continue
-            events.sort(key=lambda e: (e[0], 0 if e[1] == "cc" else 1))
+            events.sort(key=lambda e: (e[0], {"cc": 0, "note": 1}.get(e[1], 2)))
             seed = (int(round(start * 1000)) + zlib.crc32(path.encode("utf-8"))) & 0x7FFFFFFF
             # The kit's own starting controls (like hi-hat openness), then the mixer's settings.
             controls = {**(opts.get("cc") or {}), **((cc_overrides or {}) if path == self.main else {})}
-            audio = kit.render(events, preroll + length, sr, controls or None, seed=seed, variations=variations)
+            audio = kit.render(events, preroll + length, sr, controls or None, seed=seed, variations=variations,
+                               wash=self._wash_keys(opts) if wash else None)
             audio *= self._kit_gain(entry, sr)
             part = audio[:, skip: skip + frames]
             out[:, :part.shape[1]] += part
@@ -348,11 +386,11 @@ class Host:
 
     # -- rendering ----------------------------------------------------------
     def render(self, notes, ccs, start: float, preroll: float, length: float, sample_rate: int, cc_overrides=None, routes=None,
-               variations="cycle"):
+               variations="cycle", wash=True):
         import numpy as np
 
         if self.mode == "sfz":
-            return self.render_kit(notes, ccs, start, preroll, length, sample_rate, cc_overrides, routes, variations)
+            return self.render_kit(notes, ccs, start, preroll, length, sample_rate, cc_overrides, routes, variations, wash)
         self._need_plugin()
         if int(sample_rate) != self.sample_rate:
             state = self.get_state()
@@ -436,6 +474,7 @@ def worker_main(conn) -> None:
                     msg.get("cc"),
                     msg.get("routes"),
                     msg.get("variations") or "cycle",
+                    msg.get("wash", True) is not False,
                 )
                 reply = {
                     "ok": True,

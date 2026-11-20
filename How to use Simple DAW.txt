@@ -27,6 +27,9 @@ Realistic kits (recommended)
 - Mix > Kit mixer sets the level of each mic and drum.
 - Settings > Sound variations: Random (default) or In turn (1, 2, 1, 2...)
   for how each drum picks among its recordings.
+- Settings > Open hi-hat: Connected (default) lets open hi-hats played
+  in a row ring into each other, like a real hi-hat. Separate cuts
+  each one short when the next is hit.
 - Sample kits are heard on playback, not while you record.
 
 Percussion
@@ -49,6 +52,22 @@ Each drum: right-click its name (or click its ... button)
   them all; a number makes this drum always play that one recording.
   The drum name then shows v and the number (e.g. v4).
 - Volume: make this drum louder or softer (also in Mix).
+
+Cymbal chokes
+- Grab a cymbal on your module while recording and the hit is choked
+  (if your module sends cymbal grabs as polyphonic aftertouch).
+- By hand: select cymbal hits and press K, or right-click > Choke.
+  A dashed line shows how long the cymbal rings. Drag its end to change
+  when it is grabbed; drag it onto the hit to remove the choke.
+
+Tempo changes
+- Click the button next to Tap, or right-click the ruler at a bar,
+  to play faster or slower from that bar on.
+- The click, the grid and the bar numbers follow the changes.
+- The tempo box shows (and changes) the tempo where the playhead is.
+- If there are hits after that bar, Simple DAW asks whether they stay
+  where they are or follow the new tempo. Ctrl+Z undoes it.
+- MIDI files keep their tempo changes and chokes, in and out.
 
 My kits (save your kit setup)
 - Sound > Save kit setup... saves the kit with its borrowed sounds,

@@ -2,7 +2,7 @@
 
 import { Emitter, clamp, lowerBound, hashString } from './util.js';
 import { laneInfo, outputNote } from './drummap.js';
-import { beatDur } from './state.js';
+import { beatAt, timeAtBeat, tempoSegments } from './state.js';
 import { api } from './api.js';
 
 const LOOKAHEAD = 0.16;     // how far ahead events are scheduled (s)
@@ -60,15 +60,20 @@ export class KitSampler {
   }
 }
 
+// Cymbals that are one piece of metal: grabbing one stops the others too.
+const SAME_CYMBAL = { ride: ['ride', 'bell'], bell: ['ride', 'bell'], rideEdge: ['rideEdge'] };
+
 export class KitPlayer {
   constructor(sampler, ctx, destination) {
     this.s = sampler;
     this.ctx = ctx;
     this.dest = destination;
     this.active = [];
+    this.wash = true; // open hi-hats ring into each other
   }
 
-  play(when, note, vel, mapId, mix) {
+  // `choke`: seconds after the hit when a hand grabs the cymbal.
+  play(when, note, vel, mapId, mix, choke = 0) {
     const kit = this.s.kit;
     if (!kit) return;
     const info = laneInfo(mapId, note);
@@ -108,8 +113,23 @@ export class KitPlayer {
     src.connect(gain).connect(pan).connect(this.dest);
 
     if (key === 'hhClosed' || key === 'hhPedal') this.choke('hhOpen', when, 0.07);
-    else if (key === 'hhOpen') this.choke('hhOpen', when, 0.15);
-    const same = this.active.filter((v) => v.key === key && v.end > when);
+    else if (key === 'hhOpen') {
+      // Played open in a row, the hat keeps ringing under the next hit, which starts softer.
+      const ringing = this.active.filter((v) => v.key === 'hhOpen' && v.start < when && v.end > when);
+      const last = ringing.length ? Math.max(...ringing.map((v) => v.start)) : -1;
+      const gap = when - last;
+      if (this.wash && ringing.length && gap < 0.75) {
+        for (const v of ringing) this.fade(v, when, clamp(0.4 + 3 * gap, 0.5, 1.5));
+        const g0 = 0.28 + 0.72 * clamp((gap - 0.18) / 0.57, 0, 1);
+        if (g0 < 0.99) {
+          gain.gain.setValueAtTime(level * g0, when);
+          gain.gain.linearRampToValueAtTime(level, when + 0.11);
+        }
+      } else {
+        this.choke('hhOpen', when, 0.15);
+      }
+    }
+    const same = this.active.filter((v) => v.key === key && v.end > when && !v.fading);
     if (same.length >= 6) this.fade(same[0], when, 0.05);
 
     src.start(when);
@@ -120,6 +140,17 @@ export class KitPlayer {
       if (i >= 0) this.active.splice(i, 1);
       try { pan.disconnect(); } catch { /* already gone */ }
     };
+    if (choke > 0) this.grab(key, when + choke);
+  }
+
+  // A hand grabs a cymbal: it and anything else ringing on the same cymbal goes quiet.
+  grab(key, when, time = 0.15) {
+    for (const k of SAME_CYMBAL[key] || [key]) this.choke(k, when, time);
+  }
+
+  grabNote(note, mapId, when) {
+    const key = laneInfo(mapId, note).voice;
+    if (key) this.grab(key, when);
   }
 
   choke(key, when, time) {
@@ -127,13 +158,16 @@ export class KitPlayer {
   }
 
   fade(v, when, time) {
+    const end = when + time;
+    if (v.end <= end) return; // already going quiet sooner
     try {
       v.gain.gain.cancelScheduledValues(when);
       v.gain.gain.setValueAtTime(v.level, when);
-      v.gain.gain.linearRampToValueAtTime(0.0001, when + time);
-      v.src.stop(when + time + 0.01);
+      v.gain.gain.linearRampToValueAtTime(0.0001, end);
+      v.src.stop(end + 0.01);
     } catch { /* source may already be stopped */ }
-    v.end = Math.min(v.end, when + time);
+    v.end = end;
+    v.fading = true;
   }
 
   stopAll(when) {
@@ -193,12 +227,12 @@ class PluginSegments {
   hash(idx) {
     const p = this.store.project;
     const { t0, t1 } = this.window(idx);
-    let s = `${this.version}|${this.a.variations}|${this.a.ctx.sampleRate}|${p.sound.type}|${p.sound.type === 'sfz' ? p.sound.sfz?.path : ''}|${JSON.stringify(this.a.engineCC() || {})}|${p.sound.convertGM ? 1 : 0}|${p.drumMap}|${p.mutes.join(',')}|${this.a.routeSignature()}|`;
+    let s = `${this.version}|${this.a.variations}|${this.a.wash ? 1 : 0}|${this.a.ctx.sampleRate}|${p.sound.type}|${p.sound.type === 'sfz' ? p.sound.sfz?.path : ''}|${JSON.stringify(this.a.engineCC() || {})}|${p.sound.convertGM ? 1 : 0}|${p.drumMap}|${p.mutes.join(',')}|${this.a.routeSignature()}|`;
     const notes = this.store.notes;
     let count = 0;
     for (let i = lowerBound(notes, t0); i < notes.length && notes[i].t < t1; i++) {
       const n = notes[i];
-      s += `${n.t.toFixed(5)},${n.n},${n.v};`;
+      s += n.ch ? `${n.t.toFixed(5)},${n.n},${n.v},${n.ch.toFixed(4)};` : `${n.t.toFixed(5)},${n.n},${n.v};`;
       count++;
     }
     const ccs = this.store.ccs;
@@ -217,7 +251,7 @@ class PluginSegments {
     const ccs = [];
     const cl = this.store.ccs;
     for (let i = Math.max(0, lowerBound(cl, t0) - 1); i < cl.length && cl[i].t < t1; i++) ccs.push([cl[i].t, cl[i].c, cl[i].v]);
-    return { notes, routes, ccs, start, preroll: start - t0, length: SEG + XF, sampleRate: this.a.ctx.sampleRate, cc: this.a.engineCC(), variations: this.a.variations };
+    return { notes, routes, ccs, start, preroll: start - t0, length: SEG + XF, sampleRate: this.a.ctx.sampleRate, cc: this.a.engineCC(), variations: this.a.variations, wash: this.a.wash };
   }
 
   isReady(idx) {
@@ -417,6 +451,7 @@ export class AudioEngine extends Emitter {
 
     this.sampler = new KitSampler(ctx);
     this.kit = new KitPlayer(this.sampler, ctx, this.kitBus);
+    this._wash = true;
     this.segments = new PluginSegments(this);
     this.moduleOut = null;
     this.backingBuffer = null;
@@ -476,7 +511,8 @@ export class AudioEngine extends Emitter {
       }
       if (ri === -2) continue; // nothing in the current kits plays this drum
       const e = this.engineNote(n.n);
-      notes.push(ri >= 0 ? [n.t, e, n.v, ri] : [n.t, e, n.v]);
+      if (n.ch > 0) notes.push([n.t, e, n.v, ri >= 0 ? ri : null, n.ch]);
+      else notes.push(ri >= 0 ? [n.t, e, n.v, ri] : [n.t, e, n.v]);
     }
     return { notes, routes };
   }
@@ -593,6 +629,10 @@ export class AudioEngine extends Emitter {
     this.emit('state', this.state);
   }
 
+  // Open hi-hats played in a row ring into each other (sample kits and built-in kits).
+  get wash() { return this._wash; }
+  set wash(on) { this._wash = !!on; this.kit.wash = !!on; }
+
   playsPlugin() {
     return this.usesEngine && this.segments.enabled && !(this.state === 'recording' && this.recordMode === 'replace');
   }
@@ -679,12 +719,11 @@ export class AudioEngine extends Emitter {
     if (p1 <= p0) return;
     const p = this.store.project;
     const at = (pos) => c0 + (pos - p0);
-    // Metronome (always during the count-in)
-    const bd = beatDur(p);
-    const origin = p.gridOrigin || 0;
-    let k = Math.ceil((p0 - origin) / bd - 1e-9);
+    // Metronome (always during the count-in), following tempo changes
+    const segs = tempoSegments(p);
+    let k = Math.ceil(beatAt(p, p0, segs) - 1e-9);
     for (let guard = 0; guard < 64; guard++, k++) {
-      const t = origin + k * bd;
+      const t = timeAtBeat(p, k, segs);
       if (t >= p1 - 1e-9) break;
       if (t < p0 - 1e-9) continue;
       const inCountIn = this.recordFrom !== null && t < this.recordFrom - 1e-6;
@@ -702,8 +741,8 @@ export class AudioEngine extends Emitter {
         const n = notes[i];
         if (p.mutes.includes(n.n)) continue;
         if (replacing && n.t >= this.recordFrom - 0.01) continue;
-        if (type === 'kit') this.kit.play(at(n.t), n.n, n.v, p.drumMap, p.mix);
-        else this.sendModule(at(n.t), n.n, n.v);
+        if (type === 'kit') this.kit.play(at(n.t), n.n, n.v, p.drumMap, p.mix, n.ch || 0);
+        else this.sendModule(at(n.t), n.n, n.v, n.ch || 0);
       }
     } else if ((type === 'plugin' || type === 'sfz') && this.playsPlugin()) {
       this.segments.scheduleBoundaries(p0, p1, c0);
@@ -736,13 +775,18 @@ export class AudioEngine extends Emitter {
     src.onended = () => this.backingSources.delete(src);
   }
 
-  sendModule(when, note, vel) {
+  sendModule(when, note, vel, choke = 0) {
     const out = this.moduleOut;
     if (!out) return;
     const t = this.perfTimeForCtx(when);
     try {
       out.send([0x99, note & 127, vel & 127], t);
       out.send([0x89, note & 127, 0], t + 40);
+      if (choke > 0) {
+        // A grab, the way the module itself reports one: polyphonic aftertouch.
+        out.send([0xa9, note & 127, 127], t + choke * 1000);
+        out.send([0xa9, note & 127, 0], t + choke * 1000 + 60);
+      }
     } catch { /* device went away */ }
   }
 
@@ -771,7 +815,7 @@ export class AudioEngine extends Emitter {
         : this.engineHits([{ t: 0.0, n: note, v: vel }]);
       const res = await api.render({
         notes: hit.notes, routes: hit.routes, ccs: [], start: 0, preroll: 0, length: 2.2,
-        sampleRate: this.ctx.sampleRate, cc: this.engineCC(), variations: this.variations,
+        sampleRate: this.ctx.sampleRate, cc: this.engineCC(), variations: this.variations, wash: this.wash,
       });
       if (token === this._auditionToken || !this._auditionNext) {
         const buf = this.ctx.createBuffer(2, res.frames, res.sampleRate || this.ctx.sampleRate);
@@ -800,6 +844,12 @@ export class AudioEngine extends Emitter {
     if (!this.sampler.kit) return;
     const p = this.store.project;
     this.kit.play(this.ctx.currentTime + 0.003, note, vel, p.drumMap, p.mix);
+  }
+
+  // A cymbal grabbed on the module while you hear it through Simple DAW.
+  monitorChoke(note) {
+    if (!this.sampler.kit) return;
+    this.kit.grabNote(note, this.store.project.drumMap, this.ctx.currentTime + 0.003);
   }
 
   async setBackingFromUrl(url) {
