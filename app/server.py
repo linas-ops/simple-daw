@@ -30,7 +30,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 APP_NAME = "Simple DAW"
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.1"
 HOST = "127.0.0.1"
 DEFAULT_PORT = int(os.environ.get("SIMPLE_DAW_PORT", "47321"))
 IS_WINDOWS = os.name == "nt"

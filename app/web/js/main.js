@@ -2908,7 +2908,7 @@ class App {
       toast(pedalStop.checked ? 'The hi-hat pedal now stops the open hi-hat. You’ll hear it on the next playback.' : 'The open hi-hat now fades the way the kit decides when you press the pedal.');
     });
     blendList.append(el('label', { class: 'check' }, pedalStop, el('span', {}, 'Hi-hat pedal stops the open hi-hat',
-      el('span', { class: 'mi-sub' }, 'Closing the hi-hat with the pedal cuts its ring at once, like a real one. Off: the kit decides (some let it ring on for a moment). Built-in kits always stop it.'))));
+      el('span', { class: 'mi-sub' }, 'The pedal, or a closed hi-hat hit, cuts the open ring at once, like a real hi-hat closing. Works even when the open hi-hat comes from another kit. Off: each kit decides. Built-in kits always stop it.'))));
 
     const monitor = el('input', { type: 'checkbox', checked: s.monitor });
     monitor.addEventListener('change', () => this.saveSetting({ monitor: monitor.checked }));

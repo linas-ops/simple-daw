@@ -746,8 +746,9 @@ class SfzKit:
         eighths sounds like one continuous wash. amount 0 (or no blend) keeps every hit
         separate. wash (a list of keys) is the older form: the hi-hat at 0.8.
 
-        damp: {"pedal": [...], "open": [...], "fade": seconds}. A hit on a pedal key (the
-        hi-hat closed with the foot) stops everything the open keys still play, within fade.
+        damp: {"open": [...], "fade": seconds, "pedal": [...]}. A (seconds, 'damp', 0, 0)
+        event, or a hit on a pedal key, closes the hi-hat: everything the open keys still
+        play stops within fade.
 
         take (0-based) makes the hit always play that one recording of the sound
         (see take_count), with no random tuning or level.
@@ -808,6 +809,13 @@ class SfzKit:
                     if v["start"] <= frame:
                         stop_voice(v, frame, CHOKE_FADE * sr)
                 continue
+            if kind == "damp":
+                # The hi-hat closes: what the open hat rang before now stops.
+                for k in damp_open:
+                    for v in by_key.get(k, ()):
+                        if v["start"] < frame:
+                            stop_voice(v, frame, damp_fade * sr)
+                continue
             hit_gain = float(ev[4]) if len(ev) > 4 and ev[4] is not None else 1.0
             if hit_gain <= 1e-6:
                 continue
@@ -851,7 +859,7 @@ class SfzKit:
                 # The pedal closes the hi-hat: whatever the open hat still rings stops now.
                 for k in damp_open:
                     for v in by_key.get(k, ()):
-                        if v["start"] <= frame:
+                        if v["start"] < frame:
                             stop_voice(v, frame, damp_fade * sr)
             if not triggered:
                 continue

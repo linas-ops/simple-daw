@@ -31,8 +31,9 @@ Realistic kits (recommended)
   it still rings, the ring carries on under the new hit and the new hit
   starts softer, so fast hits sound like one wash. One slider for the
   open hi-hat, one for crashes (0% = every hit starts fresh).
-- Settings > Hi-hat pedal stops the open hi-hat (on by default): closing
-  the hi-hat with the pedal cuts the open ring at once.
+- Settings > Hi-hat pedal stops the open hi-hat (on by default): the
+  pedal, or a closed hi-hat hit, cuts the open ring at once, even when
+  the open hi-hat is borrowed from another kit.
 - Sample kits are heard on playback, not while you record.
 
 Percussion

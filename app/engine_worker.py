@@ -301,6 +301,18 @@ class Host:
         return keys
 
     @staticmethod
+    def _closed_keys(opts: dict) -> set:
+        """The keys that play this kit's closed hi-hat (any hi-hat key that isn't open)."""
+        if opts.get("role") == "percussion":
+            return set()
+        note_map = {int(k): int(v) for k, v in (opts.get("noteMap") or {}).items()}
+        keys = {note_map.get(42, 42)}
+        for src, ranges in ((opts.get("hihat") or {}).get("rules") or {}).items():
+            if str(src) in ("42", "46"):
+                keys.update(int(target) for _lo, _hi, target in ranges)
+        return keys - Host._wash_keys(opts)
+
+    @staticmethod
     def _crash_keys(opts: dict) -> set:
         """The keys that play this kit's crashes, chinas and splashes (General MIDI 49, 57,
         55, 52 after its note map). The Percussion kit has none."""
@@ -328,8 +340,8 @@ class Host:
         plays it, which key, whether that kit's note map applies, a level, one recording
         (take) and a shorter ring (seconds). Its 5th item is a choke: seconds until the
         cymbal is grabbed. blend: how much repeated open hi-hats and crashes ring into
-        each other, {"hat": 0..1, "cym": 0..1}. pedal_stop: the hi-hat pedal stops the
-        open hi-hat's ring at once."""
+        each other, {"hat": 0..1, "cym": 0..1}. pedal_stop: closing the hi-hat (a pedal
+        or closed hi-hat hit, in any kit) stops the open hi-hat's ring at once, in every kit."""
         import numpy as np
         import sfz
 
@@ -393,6 +405,11 @@ class Host:
                 g["chokes"].append(choke)
                 g["rings"].append(ring)
         skip = int(round(preroll * sr))
+        # First every kit's hits in its own keys; then the moments the hi-hat closes (a pedal
+        # or closed hit in any kit), which stop the open hi-hat in every kit, so an open
+        # hi-hat borrowed from another kit stops too.
+        prepared = []
+        closing = []
         for path, g in groups.items():
             try:
                 if path == self.main:
@@ -403,14 +420,25 @@ class Host:
             except Exception as exc:  # noqa: BLE001  (a missing borrowed kit shouldn't silence the rest)
                 print(f"Kit couldn't be used: {path} ({exc})", file=sys.stderr)
                 continue
-            kit, opts = entry["kit"], entry["opts"]
-            events = list(cc_events)
+            opts = entry["opts"]
             hits = []
             if g["cooked"]:
                 mapped = sfz.apply_kit_rules(g["cooked"], valid_ccs, opts.get("noteMap"), opts.get("hihat"))
                 hits += [(t, n, v, gain, take, choke, ring)
                          for (t, n, v), gain, take, choke, ring in zip(mapped, g["gains"], g["takes"], g["chokes"], g["rings"])]
             hits += g["raw"]
+            if pedal_stop:
+                closers = self._pedal_keys(opts) | self._closed_keys(opts)
+                closing += [h[0] for h in hits if int(h[1]) in closers]
+            prepared.append((path, entry, hits))
+        closing = sorted(set(round(t, 6) for t in closing))
+
+        for path, entry, hits in prepared:
+            kit, opts = entry["kit"], entry["opts"]
+            events = list(cc_events)
+            open_keys = sorted(self._wash_keys(opts)) if pedal_stop else []
+            if open_keys:
+                events += [(max(0.0, t - t0), "damp", 0, 0) for t in closing]
             for t, n, v, gain, take, choke, ring in hits:
                 events.append((max(0.0, t - t0), "note", int(n), int(v), gain, take, ring or None))
                 if choke and t + choke < t_end:
@@ -425,8 +453,7 @@ class Host:
             audio = kit.render(events, preroll + length, sr, controls or None, seed=seed, variations=variations,
                                blend={"hat": {"keys": sorted(self._wash_keys(opts)), "amount": amounts["hat"]},
                                       "cym": {"keys": sorted(self._crash_keys(opts)), "amount": amounts["cym"]}},
-                               damp={"pedal": sorted(self._pedal_keys(opts)), "open": sorted(self._wash_keys(opts)), "fade": 0.06}
-                               if pedal_stop else None)
+                               damp={"open": open_keys, "fade": 0.06} if open_keys else None)
             audio *= self._kit_gain(entry, sr)
             part = audio[:, skip: skip + frames]
             out[:, :part.shape[1]] += part
